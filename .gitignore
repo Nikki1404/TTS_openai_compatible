@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.env
+.venv
+venv/
+build/
+dist/
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Artifacts
+*.wav
+*.pcm

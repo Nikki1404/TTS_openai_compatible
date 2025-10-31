@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+numpy
+pydub
+requests
+pydantic-settings
+kokoro
+soundfile
+sounddevice
