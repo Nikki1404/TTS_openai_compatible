@@ -1,7 +1,7 @@
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://localhost:8080/v1",
+    base_url="http://10.90.126.61:8080/v1",
     api_key="not-needed",
 )
 
