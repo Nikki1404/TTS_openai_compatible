@@ -19,8 +19,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080
 Health:
 
 curl http://localhost:8080/healthz
+```
 
-How to test (only curl + OpenAI SDK)
+#How to test 
+```
 A) Single request, save to file (WAV/MP3/OGG/FLAC)
 curl -sS -X POST http://localhost:8080/v1/audio/speech \
   -H "Content-Type: application/json" \
@@ -73,12 +75,14 @@ Then paste one JSON object (you can quickly edit input each time):
 {"model":"tts-1","input":"Your free-typed line here","voice":"af_heart","response_format":"mp3","stream":true}
 
 Press Ctrl-D to send. Repeat the same command for the next line.
-
-Test with the OpenAI Python SDK
+```
+# Test with the OpenAI Python SDK
+```
 python3 app/test_openai.py 
 
-
-## Test
+```
+## Test using bash(interactive)
+```
  chmod +x scripts/tts.sh
  ./scripts/tts.sh
 
