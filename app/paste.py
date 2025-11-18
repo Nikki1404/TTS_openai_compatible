@@ -636,3 +636,13 @@ if __name__ == "__main__":
             args.debug,
         )
     )
+
+I added two things:
+
+Loaded phrases from the existing vocabulary.json into the STT flow
+
+Applied SpeechContext boosting in InputAudioConfig using those phrases
+
+Result:
+
+The STT now prioritizes and accurately detects our key demo phrases (EXL, STT, TTS, POC, etc.) during streaming.
