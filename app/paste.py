@@ -605,7 +605,6 @@ if __name__ == "__main__":
         )
     )
 
-#vocabulary.json
 {
   "medical": [
     "bradycardia",
@@ -614,16 +613,39 @@ if __name__ == "__main__":
     "hemoglobin",
     "intravenous"
   ],
+
   "products": [
     "SuperPhone",
     "MegaWidget",
     "HyperDrive",
     "QuantumLeap"
   ],
+
   "names": [
     "Siobhan",
     "Niamh",
     "Aoife",
     "Saoirse"
+  ],
+
+  "demo_abbreviations": [
+    "EXL",
+    "STT",
+    "TTS",
+    "POC"
+  ],
+
+  "demo_domain_keywords": [
+    "Highmark",
+    "Healthcare",
+    "Cadence"
+  ],
+
+  "telephony_terms": [
+    "Genesys",
+    "Telephony",
+    "IVR",
+    "Audio Connector",
+    "Streaming"
   ]
 }
