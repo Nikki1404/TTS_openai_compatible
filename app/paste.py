@@ -646,3 +646,4 @@ Applied SpeechContext boosting in InputAudioConfig using those phrases
 Result:
 
 The STT now prioritizes and accurately detects our key demo phrases (EXL, STT, TTS, POC, etc.) during streaming.
+We can simply increase the boost value in SpeechContext (e.g., 20 → 25 → 30) for stronger prioritization.
