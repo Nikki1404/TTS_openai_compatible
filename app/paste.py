@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -11,6 +10,7 @@ import struct
 import sys
 import time
 import uuid
+import json
 
 from google.api_core import retry as retries
 from google.api_core.client_options import ClientOptions
@@ -242,15 +242,47 @@ class DialogflowCXStreaming:
             logger.setLevel(logging.DEBUG)
             logger.debug("Debug logging enabled")
 
+        # -----------------------------
+        # Load boost phrases from vocabulary.json
+        # -----------------------------
+        self.boost_phrases: list[str] = []
+        try:
+            with open("vocabulary.json") as f:
+                vocab = json.load(f)
+            for group in vocab.values():
+                self.boost_phrases.extend(group)
+            # Deduplicate
+            self.boost_phrases = list(set(self.boost_phrases))
+            logger.info(
+                f"Loaded {len(self.boost_phrases)} boost phrases from vocabulary.json"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Could not load vocabulary.json for speech contexts: {e}"
+            )
+            self.boost_phrases = []
+
     async def generate_streaming_detect_intent_requests(
         self, audio_queue: asyncio.Queue
     ) -> AsyncGenerator[dialogflowcx_v3.StreamingDetectIntentRequest, None]:
         """Generates the requests for the streaming API."""
+
+        # Build speech contexts from loaded phrases (if any)
+        speech_contexts: list[dialogflowcx_v3.SpeechContext] = []
+        if self.boost_phrases:
+            speech_contexts.append(
+                dialogflowcx_v3.SpeechContext(
+                    phrases=self.boost_phrases,
+                    boost=20.0,  # strong boost for EXL/STT/TTS/POC/etc from vocabulary.json
+                )
+            )
+
         audio_config = dialogflowcx_v3.InputAudioConfig(
             audio_encoding=dialogflowcx_v3.AudioEncoding.AUDIO_ENCODING_LINEAR_16,
             sample_rate_hertz=self.sample_rate,
             model=self.model,
             single_utterance=self.single_utterance,
+            speech_contexts=speech_contexts,
         )
         query_input = dialogflowcx_v3.QueryInput(
             language_code=self.language_code,
@@ -604,48 +636,3 @@ if __name__ == "__main__":
             args.debug,
         )
     )
-
-{
-  "medical": [
-    "bradycardia",
-    "tachycardia",
-    "arrhythmia",
-    "hemoglobin",
-    "intravenous"
-  ],
-
-  "products": [
-    "SuperPhone",
-    "MegaWidget",
-    "HyperDrive",
-    "QuantumLeap"
-  ],
-
-  "names": [
-    "Siobhan",
-    "Niamh",
-    "Aoife",
-    "Saoirse"
-  ],
-
-  "demo_abbreviations": [
-    "EXL",
-    "STT",
-    "TTS",
-    "POC"
-  ],
-
-  "demo_domain_keywords": [
-    "Highmark",
-    "Healthcare",
-    "Cadence"
-  ],
-
-  "telephony_terms": [
-    "Genesys",
-    "Telephony",
-    "IVR",
-    "Audio Connector",
-    "Streaming"
-  ]
-}
