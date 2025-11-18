@@ -454,3 +454,9 @@ export class KokoroTTSWSService implements TTSService {
         this.cleanup();        
     }
 };
+
+no, we can try using the following code (in typescript) inside https://ucgithub.exlservice.com/netala220634/genesys-audio-connector/blob/gac-node-dev/src/services/tts/kokoro-tts-service.ts:
+ 
+pipeline = KPipeline(lang_code=os.getenv("KOKORO_LANG", "a"))
+
+gen = pipeline(text, voice=voice, speed=speed, split_pattern=r"\n+")
