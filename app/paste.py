@@ -604,3 +604,26 @@ if __name__ == "__main__":
             args.debug,
         )
     )
+
+#vocabulary.json
+{
+  "medical": [
+    "bradycardia",
+    "tachycardia",
+    "arrhythmia",
+    "hemoglobin",
+    "intravenous"
+  ],
+  "products": [
+    "SuperPhone",
+    "MegaWidget",
+    "HyperDrive",
+    "QuantumLeap"
+  ],
+  "names": [
+    "Siobhan",
+    "Niamh",
+    "Aoife",
+    "Saoirse"
+  ]
+}
