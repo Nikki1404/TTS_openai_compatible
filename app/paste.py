@@ -455,8 +455,18 @@ export class KokoroTTSWSService implements TTSService {
     }
 };
 
-no, we can try using the following code (in typescript) inside https://ucgithub.exlservice.com/netala220634/genesys-audio-connector/blob/gac-node-dev/src/services/tts/kokoro-tts-service.ts:
- 
-pipeline = KPipeline(lang_code=os.getenv("KOKORO_LANG", "a"))
+The KPipeline object relies on massive, Python-native libraries like PyTorch and NumPy. These libraries and their underlying C/C++ speed optimizations do not exist in the Node.js ecosystem.
 
-gen = pipeline(text, voice=voice, speed=speed, split_pattern=r"\n+")
+You would have to rewrite the entire Kokoro engine in TypeScript, which is completely impractical.
+
+The only way to use the existing, fast Python logic without the slow public network is to use Inter-Process Communication (IPC).
+
+This involves:
+
+Eliminating the WebSocket Server: Replace the FastAPI WebSocket server with a simple Python script.
+
+Using Node.js as a Parent: Your TypeScript service uses Node.js's child_process to run the Python script.
+
+Fast Communication: Text is passed to Python via stdin, and binary audio data is returned directly via stdout.
+
+Impact: This bypasses the entire TCP/IP network stack and provides the minimum achievable latency while retaining the proven Python Kokoro engine.
