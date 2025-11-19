@@ -104,7 +104,7 @@ if __name__ == "__main__":
 
     url = (
         "https://generativelanguage.googleapis.com/v1beta/"
-        "models/gemini-2.5-flash-preview-tts:generateContent"
+        "models/gemini-2.0-flash-lite-preview-tts:generateContent"
         f"?key={API_KEY}"
     )
 
