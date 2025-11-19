@@ -1,112 +1,209 @@
+gemini:
+  api_key: "YOUR_REAL_GEMINI_API_KEY_HERE"
+  model: "gemini-2.5-flash-preview-tts"
+
+audio:
+  default_voice: "Kore"
+  sample_rate: 24000
+  output_dir: "outputs"
+
+
+
+import struct
+
+
+def l16_to_wav(l16_bytes: bytes, sample_rate=24000, num_channels=1):
+    bits_per_sample = 16
+    block_align = num_channels * bits_per_sample // 8
+    byte_rate = sample_rate * block_align
+    data_size = len(l16_bytes)
+    file_size = 36 + data_size
+
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",
+        file_size,
+        b"WAVE",
+        b"fmt ",
+        16,
+        1,
+        num_channels,
+        sample_rate,
+        byte_rate,
+        block_align,
+        bits_per_sample,
+        b"data",
+        data_size,
+    )
+    return header + l16_bytes
+
+
+def linear2ulaw(sample):
+    MULAW_MAX = 0x1FFF
+    MULAW_BIAS = 33
+    sign = (sample >> 8) & 0x80
+
+    if sign != 0:
+        sample = -sample
+    if sample > MULAW_MAX:
+        sample = MULAW_MAX
+
+    sample += MULAW_BIAS
+
+    exponent = 7
+    exp_mask = 0x4000
+    while (sample & exp_mask) == 0 and exponent > 0:
+        exponent -= 1
+        exp_mask >>= 1
+
+    mantissa = (sample >> (exponent + 3)) & 0x0F
+    ulaw_byte = ~(sign | (exponent << 4) | mantissa) & 0xFF
+    return ulaw_byte
+
+
+def l16_to_mulaw(l16_bytes):
+    out = bytearray()
+    for i in range(0, len(l16_bytes), 2):
+        sample = struct.unpack("<h", l16_bytes[i:i+2])[0]
+        out.append(linear2ulaw(sample))
+    return bytes(out)
+
+
 import os
+import re
+import datetime
+
+
+def ensure_dir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+
+def generate_filename(prefix, voice, text, ext="wav"):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    preview = re.sub(r"[^A-Za-z0-9]+", "_", text[:12])
+    return f"{prefix}_{voice}_{preview}_{timestamp}.{ext}"
+
+
+import requests
+import base64
 import time
-import numpy as np
-import sounddevice as sd
-import soundfile as sf
-import google.generativeai as genai
+import yaml
+from .audio_utils import l16_to_wav, l16_to_mulaw
+from .file_utils import ensure_dir, generate_filename
 
 
-class GeminiTTSLatency:
-    def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+class GeminiTTS:
+    def __init__(self, config_path="config/config.yaml"):
+        with open(config_path, "r") as f:
+            cfg = yaml.safe_load(f)
 
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-tts-1")
+        self.api_key = cfg["gemini"]["api_key"]
+        self.model = cfg["gemini"]["model"]
+        self.default_voice = cfg["audio"]["default_voice"]
+        self.sample_rate = cfg["audio"]["sample_rate"]
+        self.output_dir = cfg["audio"]["output_dir"]
 
-    def now_us(self):
-        return time.perf_counter_ns() / 1000
+        ensure_dir(self.output_dir)
 
-    def pcm16_to_mulaw(self, pcm16):
-        MU = 255
-        pcm = pcm16.astype(np.float32) / 32768.0
-        mulaw = np.sign(pcm) * np.log1p(MU * np.abs(pcm)) / np.log1p(MU)
-        return ((mulaw + 1) * 127.5).astype(np.uint8)
+        self.url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{self.model}:generateContent?key={self.api_key}"
+        )
 
-    def mulaw_to_pcm16(self, mulaw):
-        MU = 255
-        x = mulaw.astype(np.float32) / 127.5 - 1
-        pcm = np.sign(x) * ((1 + MU) ** np.abs(x) - 1) / MU
-        return (pcm * 32767).astype(np.int16)
+    def synthesize(self, text, voice=None):
+        if voice is None:
+            voice = self.default_voice
 
-    def generate_and_measure(self, text):
-
-        print("\n====== GEMINI TTS LATENCY REPORT ======\n")
-        print(f"Text: {text}")
-        print("-------------------------------------")
-
-        # CORRECT API FORMAT FOR SDK 0.8.5
-        generation_config = {
-            "response_mime_type": "audio/wav",
-            "audio": {
-                "voice_name": "Pine",
-                "audio_encoding": "LINEAR16"   # WAV PCM
+        payload = {
+            "contents": [
+                {"role": "user", "parts": [{"text": text}]}
+            ],
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {"voiceName": voice}
+                    }
+                }
             }
         }
 
-        # ---------------- API Call Timing ----------------
-        api_start = self.now_us()
+        # ------ Start API latency timer ------
+        t_start = time.time()
+        response = requests.post(self.url, json=payload)
+        t_api = time.time()
 
-        response = self.model.generate_content(
-            text,
-            generation_config=generation_config
-        )
+        if response.status_code != 200:
+            raise RuntimeError(response.text)
 
-        api_first = self.now_us()
-        wav_bytes = response.candidates[0].content[0].binary
-        api_end = self.now_us()
+        data = response.json()
+        inline = data["candidates"][0]["content"]["parts"][0]["inlineData"]
 
-        print(f"TTFB (first byte):          {(api_first - api_start)/1000:.2f} ms")
-        print(f"Total API latency:          {(api_end - api_start)/1000:.2f} ms")
-        print(f"WAV Size:                   {len(wav_bytes)} bytes\n")
+        raw_l16 = base64.b64decode(inline["data"])
 
-        # Save WAV
-        with open("gemini.wav", "wb") as f:
+        # ------ WAV ------
+        t_wav_start = time.time()
+        wav_bytes = l16_to_wav(raw_l16, self.sample_rate)
+        t_wav_end = time.time()
+
+        wav_path = f"{self.output_dir}/{generate_filename('tts_wav', voice, text, 'wav')}"
+        with open(wav_path, "wb") as f:
             f.write(wav_bytes)
 
-        # WAV PLAY
-        wav_data, wav_sr = sf.read("gemini.wav")
-        print("Playing WAV...")
-        wav_play_start = self.now_us()
-        sd.play(wav_data, wav_sr)
-        sd.wait()
-        wav_play_end = self.now_us()
-        print(f"WAV Playback Latency:       {(wav_play_end - wav_play_start)/1000:.2f} ms\n")
+        # ------ MULAW ------
+        t_mulaw_start = time.time()
+        mulaw_bytes = l16_to_mulaw(raw_l16)
+        t_mulaw_end = time.time()
 
-        # MULAW CONVERSION
-        pcm16 = (wav_data * 32767).astype(np.int16)
-        conv_start = self.now_us()
-        mulaw = self.pcm16_to_mulaw(pcm16)
-        conv_end = self.now_us()
+        mulaw_path = f"{self.output_dir}/{generate_filename('tts_mulaw', voice, text, 'mulaw')}"
+        with open(mulaw_path, "wb") as f:
+            f.write(mulaw_bytes)
 
-        print(f"MULAW Conversion Latency:   {(conv_end - conv_start)/1000:.2f} ms")
-        print(f"MULAW Size:                 {len(mulaw)} bytes\n")
+        t_end = time.time()
 
-        # MULAW PLAYBACK
-        pcm16_decoded = self.mulaw_to_pcm16(mulaw).astype(np.float32) / 32767.0
-        print("Playing MULAW (8kHz)...")
-        mulaw_play_start = self.now_us()
-        sd.play(pcm16_decoded, 8000)
-        sd.wait()
-        mulaw_play_end = self.now_us()
+        return {
+            "wav_path": wav_path,
+            "mulaw_path": mulaw_path,
+            "latency": {
+                "api_ms": round((t_api - t_start) * 1000, 2),
+                "wav_encode_ms": round((t_wav_end - t_wav_start) * 1000, 2),
+                "mulaw_encode_ms": round((t_mulaw_end - t_mulaw_start) * 1000, 2),
+                "total_ms": round((t_end - t_start) * 1000, 2),
+            }
+        }
 
-        print(f"MULAW Playback Latency:     {(mulaw_play_end - mulaw_play_start)/1000:.2f} ms\n")
 
-        print("Saved files:")
-        print(" - gemini.wav")
-        print(" - gemini_output_mulaw.raw")
 
-        with open("gemini_output_mulaw.raw", "wb") as f:
-            f.write(mulaw.tobytes())
-
-        print("============== END REPORT ==============\n")
-
+from tts.gemini_client import GeminiTTS
 
 if __name__ == "__main__":
-    tts = GeminiTTSLatency()
+    client = GeminiTTS()
+
+    print("=== Gemini TTS Interactive Mode ===")
+    print("Type text and press Enter (type 'exit' to quit)\n")
+
     while True:
-        text = input("Enter text (or 'exit'): ").strip()
+        text = input("Enter text: ").strip()
         if text.lower() == "exit":
             break
-        tts.generate_and_measure(text)
+
+        voice = input("Choose voice (default Kore): ").strip()
+        if voice == "":
+            voice = None
+
+        result = client.synthesize(text, voice)
+
+        print("\n======= LATENCY REPORT =======")
+        for k, v in result["latency"].items():
+            print(f"{k}: {v} ms")
+
+        print("\nSaved:")
+        print("WAV   →", result["wav_path"])
+        print("MULAW →", result["mulaw_path"])
+        print("==============================\n")
+
+
+
+requests
+pyyaml
