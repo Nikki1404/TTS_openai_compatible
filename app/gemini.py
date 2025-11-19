@@ -2,6 +2,8 @@ import requests
 import base64
 import struct
 import time
+import datetime
+import re
 
 
 # ---------------------------------------------------
@@ -21,7 +23,7 @@ def l16_to_wav(l16_bytes: bytes, sample_rate=24000, num_channels=1):
         b"WAVE",
         b"fmt ",
         16,
-        1,
+        1,                       # PCM
         num_channels,
         sample_rate,
         byte_rate,
@@ -30,13 +32,28 @@ def l16_to_wav(l16_bytes: bytes, sample_rate=24000, num_channels=1):
         b"data",
         data_size
     )
+
     return header + l16_bytes
 
 
 # ---------------------------------------------------
-# Gemini TTS - Single Speaker Version (Interactive)
+# Save with unique filename
+# ---------------------------------------------------
+def generate_filename(voice, text):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+    # Clean text preview (only letters & numbers)
+    preview = re.sub(r'[^A-Za-z0-9]+', '_', text[:15])
+
+    filename = f"tts_{voice}_{preview}_{timestamp}.wav"
+    return filename
+
+
+# ---------------------------------------------------
+# Gemini TTS - Single Speaker Version WITH LATENCY + UNIQUE SAVING
 # ---------------------------------------------------
 def generate_single_speaker_tts(api_key, text, voice):
+
     url = (
         "https://generativelanguage.googleapis.com/v1beta/"
         "models/gemini-2.5-flash-preview-tts:generateContent"
@@ -52,31 +69,29 @@ def generate_single_speaker_tts(api_key, text, voice):
             "speechConfig": {
                 "voiceConfig": {
                     "prebuiltVoiceConfig": {
-                        "voiceName": voice     # <-- VOICE IS NOW INTERACTIVE
+                        "voiceName": voice
                     }
                 }
             }
         }
     }
 
-    # ----------------- Latency Start ------------------
+    # ---------- Start timing ----------
     t_start = time.time()
-
     response = requests.post(url, json=payload)
-
     t_api = time.time()
 
-    print("Status:", response.status_code)
+    print("\nStatus:", response.status_code)
 
     if response.status_code != 200:
         print(response.text)
         return
 
+    # Extract audio
     data = response.json()
-
     inline = data["candidates"][0]["content"]["parts"][0]["inlineData"]
     audio_b64 = inline["data"]
-    mime_type = inline["mimeType"]  
+    mime_type = inline["mimeType"]
 
     raw_l16 = base64.b64decode(audio_b64)
 
@@ -86,13 +101,16 @@ def generate_single_speaker_tts(api_key, text, voice):
 
     wav_bytes = l16_to_wav(raw_l16, sample_rate)
 
-    # ----------------- Latency End ------------------
+    # ---------- End timing ----------
     t_end = time.time()
 
-    print(f"\nAPI Time:    {(t_api - t_start)*1000:.2f} ms")
-    print(f"Total Time:  {(t_end - t_start)*1000:.2f} ms")
+    print("\n====== LATENCY REPORT ======")
+    print(f"API Latency:     {(t_api - t_start)*1000:.2f} ms")
+    print(f"Total Latency:   {(t_end - t_start)*1000:.2f} ms")
+    print("==============================")
 
-    filename = "single_speaker.wav"
+    # ---------- Save uniquely ----------
+    filename = generate_filename(voice, text)
     with open(filename, "wb") as f:
         f.write(wav_bytes)
 
@@ -100,15 +118,15 @@ def generate_single_speaker_tts(api_key, text, voice):
 
 
 # ---------------------------------------------------
-# INTERACTIVE TERMINAL MODE
+# INTERACTIVE MODE
 # ---------------------------------------------------
 if __name__ == "__main__":
     API_KEY = "YOUR_REAL_GEMINI_API_KEY_HERE"
 
     print("=== Gemini TTS Interactive Mode ===")
-    print("Type text to convert to speech.")
-    print("Type 'exit' to quit.")
-    print("Available voices: Kore, Leda, Aoede, Fenrir, Charon, Wraith")
+    print("Voices: Kore, Leda, Aoede, Fenrir, Charon, Wraith")
+    print("Outputs will be saved as SEPARATE .wav files")
+    print("Type 'exit' anytime to quit.")
     print("----------------------------------------")
 
     while True:
