@@ -37,7 +37,7 @@ def l16_to_wav_fast(l16_bytes: bytes, sample_rate=24000, num_channels=1):
 # ---------------------------------------------------
 # Gemini TTS optimized latency tester
 # ---------------------------------------------------
-def create_payload(text, voice="Kore"):
+def create_payload(text, voice="Algieba"):
     return {
         "contents": [
             {"role": "user", "parts": [{"text": text}]}
