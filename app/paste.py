@@ -471,3 +471,41 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+import { TTSService } from '../interfaces/TTSService';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import CircuitBreaker from 'opossum';
+import { circuitBreakerOptions } from '../../common/circuit-breaker';
+
+export class GeminiTTSService implements TTSService {
+    private generativeAi: GoogleGenerativeAI;
+    private breaker: CircuitBreaker;
+
+    constructor() {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error('Gemini API key not configured.');
+        }
+        this.generativeAi = new GoogleGenerativeAI(apiKey);
+        this.breaker = new CircuitBreaker(this.synthesizeSpeech.bind(this), circuitBreakerOptions);
+    }
+
+    private async synthesizeSpeech(text: string): Promise<Uint8Array> {
+        const model = this.generativeAi.getGenerativeModel({ model: "gemini-1.5-flash-preview" });
+        const result = await model.generateContent(text);
+        const response = await result.response;
+        // This is a placeholder for how to get the audio data.
+        // The actual implementation will depend on the API response format.
+        // For now, we'll assume the response has a method to get the audio as a Uint8Array.
+        // Replace this with the actual method when the API is finalized.
+        // const audio = await response.audio();
+        // return new Uint8Array(audio);
+        return new Uint8Array(); // Placeholder
+    }
+
+    synthesize(text: string): Promise<Uint8Array> {
+        return this.breaker.fire(text) as Promise<Uint8Array>;
+    }
+}
+
