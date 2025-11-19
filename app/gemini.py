@@ -7,7 +7,7 @@ import re
 
 
 # ---------------------------------------------------
-# Convert audio/L16 PCM → WAV
+# Convert audio/L16 → WAV
 # ---------------------------------------------------
 def l16_to_wav(l16_bytes: bytes, sample_rate=24000, num_channels=1):
     bits_per_sample = 16
@@ -23,7 +23,7 @@ def l16_to_wav(l16_bytes: bytes, sample_rate=24000, num_channels=1):
         b"WAVE",
         b"fmt ",
         16,
-        1,                       # PCM
+        1,                 
         num_channels,
         sample_rate,
         byte_rate,
@@ -36,17 +36,8 @@ def l16_to_wav(l16_bytes: bytes, sample_rate=24000, num_channels=1):
 
 
 # ---------------------------------------------------
-# Convert L16 → MULAW (8-bit companded)
+# Convert L16 → MULAW bytes
 # ---------------------------------------------------
-def l16_to_mulaw(l16_bytes):
-    mulaw_bytes = bytearray()
-    for i in range(0, len(l16_bytes), 2):
-        sample = struct.unpack("<h", l16_bytes[i:i+2])[0]
-        mulaw_bytes.append(linear2ulaw(sample))
-    return bytes(mulaw_bytes)
-
-
-# μ-law conversion (G.711)
 def linear2ulaw(sample):
     MULAW_MAX = 0x1FFF
     MULAW_BIAS = 33
@@ -67,23 +58,31 @@ def linear2ulaw(sample):
         exp_mask >>= 1
 
     mantissa = (sample >> (exponent + 3)) & 0x0F
-    ulaw_byte = ~(sign | (exponent << 4) | mantissa) & 0xFF
-    return ulaw_byte
+    return ~(sign | (exponent << 4) | mantissa) & 0xFF
+
+
+def l16_to_mulaw(l16_bytes):
+    out = bytearray()
+    for i in range(0, len(l16_bytes), 2):
+        sample = struct.unpack("<h", l16_bytes[i:i+2])[0]
+        out.append(linear2ulaw(sample))
+    return bytes(out)
 
 
 # ---------------------------------------------------
-# Unique filename generator
+# Unique file naming
 # ---------------------------------------------------
-def generate_filename(prefix, voice, text, ext):
+def make_filename(prefix, voice, text, ext):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    preview = re.sub(r'[^A-Za-z0-9]+', '_', text[:12])
-    return f"{prefix}_{voice}_{preview}_{timestamp}.{ext}"
+    short = re.sub(r'[^A-Za-z0-9]+', '_', text[:12])
+    return f"{prefix}_{voice}_{short}_{timestamp}.{ext}"
 
 
 # ---------------------------------------------------
-# Gemini TTS: WAV + MULAW + LATENCY
+# Gemini TTS with FULL TIMING
 # ---------------------------------------------------
 def generate_tts(api_key, text, voice):
+
     url = (
         "https://generativelanguage.googleapis.com/v1beta/"
         "models/gemini-2.5-flash-preview-tts:generateContent"
@@ -104,10 +103,17 @@ def generate_tts(api_key, text, voice):
         }
     }
 
-    # ----------- Start Latency -----------
-    t_start = time.time()
+    # -------------------------------------------------------
+    # TOTAL START TIME
+    # -------------------------------------------------------
+    total_start = time.time()
+
+    # -------------------------------------------------------
+    # API CALL TIMING
+    # -------------------------------------------------------
+    api_start = time.time()
     response = requests.post(url, json=payload)
-    t_api = time.time()
+    api_end = time.time()
 
     if response.status_code != 200:
         print(response.text)
@@ -116,43 +122,61 @@ def generate_tts(api_key, text, voice):
     data = response.json()
     inline = data["candidates"][0]["content"]["parts"][0]["inlineData"]
 
-    raw_l16 = base64.b64decode(inline["data"])
+    l16_raw = base64.b64decode(inline["data"])
 
-    # Extract sample rate
-    mime = inline["mimeType"]
     sample_rate = 24000
-    if "rate=" in mime:
-        sample_rate = int(mime.split("rate=")[1])
+    if "rate=" in inline["mimeType"]:
+        sample_rate = int(inline["mimeType"].split("rate=")[1])
 
-    # ----------- WAV ENCODE -----------
-    t_wav_start = time.time()
-    wav_data = l16_to_wav(raw_l16, sample_rate)
-    t_wav_end = time.time()
+    # -------------------------------------------------------
+    # WAV GENERATION TIMING
+    # -------------------------------------------------------
+    wav_start = time.time()
+    wav_bytes = l16_to_wav(l16_raw, sample_rate)
+    wav_end = time.time()
 
-    wav_file = generate_filename("tts_wav", voice, text, "wav")
+    wav_file = make_filename("tts_wav", voice, text, "wav")
     with open(wav_file, "wb") as f:
-        f.write(wav_data)
+        f.write(wav_bytes)
 
-    # ----------- MULAW ENCODE -----------
-    t_mulaw_start = time.time()
-    mulaw_data = l16_to_mulaw(raw_l16)
-    t_mulaw_end = time.time()
+    # -------------------------------------------------------
+    # MULAW GENERATION TIMING
+    # -------------------------------------------------------
+    mulaw_start = time.time()
+    mulaw_bytes = l16_to_mulaw(l16_raw)
+    mulaw_end = time.time()
 
-    mulaw_file = generate_filename("tts_mulaw", voice, text, "mulaw")
+    mulaw_file = make_filename("tts_mulaw", voice, text, "mulaw")
     with open(mulaw_file, "wb") as f:
-        f.write(mulaw_data)
+        f.write(mulaw_bytes)
 
-    t_end = time.time()
+    # -------------------------------------------------------
+    # TOTAL END TIME
+    # -------------------------------------------------------
+    total_end = time.time()
 
-    # ----------- LATENCY REPORT -----------
-    print("\n====== LATENCY REPORT ======")
-    print(f"API Latency:            {(t_api - t_start)*1000:.2f} ms")
-    print(f"WAV Encode Latency:     {(t_wav_end - t_wav_start)*1000:.2f} ms")
-    print(f"MULAW Encode Latency:   {(t_mulaw_end - t_mulaw_start)*1000:.2f} ms")
-    print(f"TOTAL Time:             {(t_end - t_start)*1000:.2f} ms")
-    print("==============================")
+    # -------------------------------------------------------
+    # LATENCY REPORT
+    # -------------------------------------------------------
+    print("\n================ LATENCY REPORT ================")
+    print(f"API Start Time:    {api_start}")
+    print(f"API End Time:      {api_end}")
+    print(f"API Latency:       {(api_end - api_start)*1000:.2f} ms\n")
 
-    print(f"Saved WAV  → {wav_file}")
+    print(f"WAV Start Time:    {wav_start}")
+    print(f"WAV End Time:      {wav_end}")
+    print(f"WAV Latency:       {(wav_end - wav_start)*1000:.2f} ms\n")
+
+    print(f"MULAW Start Time:  {mulaw_start}")
+    print(f"MULAW End Time:    {mulaw_end}")
+    print(f"MULAW Latency:     {(mulaw_end - mulaw_start)*1000:.2f} ms\n")
+
+    print(f"TOTAL Start Time:  {total_start}")
+    print(f"TOTAL End Time:    {total_end}")
+    print(f"TOTAL Latency:     {(total_end - total_start)*1000:.2f} ms")
+    print("=================================================\n")
+
+    print(f"Saved WAV   → {wav_file}")
     print(f"Saved MULAW → {mulaw_file}\n")
 
 
@@ -162,12 +186,10 @@ def generate_tts(api_key, text, voice):
 if __name__ == "__main__":
     API_KEY = "YOUR_REAL_GEMINI_API_KEY_HERE"
 
-    print("=== Gemini TTS (WAV + MULAW) ===")
-    print("Voices: Kore, Leda, Aoede, Fenrir, Charon, Wraith")
-    print("Type text and press Enter. Type 'exit' to quit.\n")
+    print("=== Gemini TTS (WAV + MULAW) with FULL TIMESTAMPS ===")
 
     while True:
-        text = input("Enter text: ").strip()
+        text = input("\nEnter text (or 'exit'): ").strip()
         if text.lower() == "exit":
             break
 
