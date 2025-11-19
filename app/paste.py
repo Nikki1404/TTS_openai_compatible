@@ -325,3 +325,149 @@ if __name__ == "__main__":
 export GOOGLE_APPLICATION_CREDENTIALS="service_account.json"
 set GOOGLE_APPLICATION_CREDENTIALS=service_account.json
 $env:GOOGLE_APPLICATION_CREDENTIALS="service_account.json"
+
+#gemini-tts.py
+
+
+import os
+import time
+import datetime
+import base64
+import json
+from pathlib import Path
+
+import requests
+
+
+# ------------------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------------------
+
+# Read API key from environment (recommended for security)
+API_KEY = os.getenv("GEMINI_API_KEY")
+
+if not API_KEY:
+    raise RuntimeError(
+        "GEMINI_API_KEY environment variable is not set. "
+        "Set it first, e.g. in CMD:  set GEMINI_API_KEY=your_key_here"
+    )
+
+MODEL_NAME = "models/gemini-tts-1"      # Gemini TTS model
+VOICE_NAME = "Pine"                     # Natural English voice
+OUTPUT_FILE = "gemini_tts_output.wav"   # Output file name
+
+API_URL = f"https://generativelanguage.googleapis.com/v1beta/{MODEL_NAME}:generateContent"
+
+
+# ------------------------------------------------------------
+# FUNCTION: Call Gemini-TTS & measure pure API latency
+# ------------------------------------------------------------
+def call_gemini_tts(text: str):
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": text}
+                ]
+            }
+        ],
+        "generationConfig": {
+            "audioConfig": {
+                "voiceName": VOICE_NAME,
+                "audioEncoding": "LINEAR16",
+                "sampleRateHertz": 24000,
+            }
+        },
+    }
+
+    # ---- record high-precision start time ----
+    start_datetime = datetime.datetime.now()
+    start = time.perf_counter()  # high-res timer (ns → we convert to µs / ms)
+
+    # HTTP POST to Gemini-TTS
+    response = requests.post(
+        API_URL,
+        headers=headers,
+        params={"key": API_KEY},  # API key passed as query param
+        data=json.dumps(payload),
+        timeout=30,
+    )
+
+    # ---- record end time ----
+    end_datetime = datetime.datetime.now()
+    end = time.perf_counter()
+
+    # ---- basic error handling ----
+    if response.status_code != 200:
+        print(" API ERROR")
+        print("Status:", response.status_code)
+        print("Body  :", response.text)
+        return None
+
+    data = response.json()
+
+    # Extract base64 audio data
+    try:
+        audio_b64 = data["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]
+    except (KeyError, IndexError) as e:
+        print(" Unexpected response format from Gemini:")
+        print(json.dumps(data, indent=2))
+        raise e
+
+    # Decode to raw bytes
+    audio_bytes = base64.b64decode(audio_b64)
+
+    # Save file
+    Path(OUTPUT_FILE).write_bytes(audio_bytes)
+
+    # Latency calculations
+    latency_seconds = end - start
+    latency_ms = latency_seconds * 1000.0
+    latency_us = latency_seconds * 1_000_000.0
+
+    print("\n================ GEMINI TTS LATENCY REPORT ================")
+    print(f"Text            : {text}")
+    print(f"Start Time      : {start_datetime}")
+    print(f"End Time        : {end_datetime}")
+    print(f"Latency         : {latency_ms:.3f} ms ({latency_us:.0f} μs)")
+    print(f"Audio Size      : {len(audio_bytes)} bytes")
+    print(f"Saved File      : {OUTPUT_FILE}")
+    print("===========================================================\n")
+
+    return latency_ms, latency_us
+
+
+# ------------------------------------------------------------
+# INTERACTIVE LOOP
+# ------------------------------------------------------------
+def main():
+    print("=====================================================")
+    print(" Gemini-TTS Latency Tester (API Key)")
+    print("• Type text and press ENTER to call Gemini-TTS")
+    print("• A WAV file will be saved as gemini_tts_output.wav")
+    print("• Type 'exit' to quit")
+    print("=====================================================\n")
+
+    while True:
+        text = input("Enter text: ").strip()
+
+        if text.lower() == "exit":
+            print("Exiting…")
+            break
+
+        if not text:
+            print("⚠ Please enter some text.")
+            continue
+
+        try:
+            call_gemini_tts(text)
+        except Exception as e:
+            print("❌ Exception during TTS call:", e)
+
+
+if __name__ == "__main__":
+    main()
