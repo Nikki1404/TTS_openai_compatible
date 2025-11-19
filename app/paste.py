@@ -181,61 +181,146 @@ export async function getGoogleAuthToken(): Promise<string> {
 
 #google_tts.py
 import time
+import datetime
+import numpy as np
+import sounddevice as sd
 from google.cloud import texttospeech
+import wave
 
-def measure_api_latency(text):
-    client = texttospeech.TextToSpeechClient()
+client = texttospeech.TextToSpeechClient()
 
-    voice = texttospeech.VoiceSelectionParams(
-        language_code="en-US",
-        name="en-US-Wavenet-D",
+VOICE = "en-US-Wavenet-D"
+LANG = "en-US"
+
+
+# ---------------------- WAV HELPERS ----------------------
+def save_wav_linear16(filename, audio_bytes, sample_rate=24000):
+    with wave.open(filename, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(audio_bytes)
+
+
+def play_linear16(audio_bytes, sample_rate=24000):
+    audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
+    sd.play(audio_array, samplerate=sample_rate)
+    sd.wait()
+
+
+# ---------------------- MULAW HELPERS ----------------------
+def play_mulaw(audio_bytes, sample_rate=8000):
+    ulaw = np.frombuffer(audio_bytes, dtype=np.uint8)
+    pcm = (ulaw.astype(np.float32) - 128) * 256
+    pcm = pcm.astype(np.int16)
+    sd.play(pcm, samplerate=sample_rate)
+    sd.wait()
+
+
+# -------------------------------------------------------
+# Perform TTS + capture start/end timestamps
+# -------------------------------------------------------
+def tts_with_timestamps(text):
+    voice_params = texttospeech.VoiceSelectionParams(
+        language_code=LANG,
+        name=VOICE,
         ssml_gender=texttospeech.SsmlVoiceGender.MALE
     )
 
-    audio_config = texttospeech.AudioConfig(
+    # HIGH QUALITY WAV TEST --------------------------
+    print("\n===== WAV (PLAYABLE AUDIO) =====")
+
+    audio_config_wav = texttospeech.AudioConfig(
+        audio_encoding=texttospeech.AudioEncoding.LINEAR16,
+        sample_rate_hertz=24000
+    )
+
+    # Timestamp before API call
+    start_time = datetime.datetime.now()
+    start_ts = time.time()
+
+    resp_wav = client.synthesize_speech(
+        input=texttospeech.SynthesisInput(text=text),
+        voice=voice_params,
+        audio_config=audio_config_wav
+    )
+
+    # Timestamp after API call
+    end_time = datetime.datetime.now()
+    end_ts = time.time()
+
+    latency_ms = (end_ts - start_ts) * 1000
+
+    print(f"Start Time: {start_time}")
+    print(f"End Time:   {end_time}")
+    print(f"WAV Latency: {latency_ms:.2f} ms")
+
+    save_wav_linear16("output.wav", resp_wav.audio_content)
+    play_linear16(resp_wav.audio_content)
+
+
+    # MULAW TELEPHONY TEST ----------------------------
+    print("\n===== MULAW 8000 Hz (TELEPHONY) =====")
+
+    audio_config_ulaw = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.MULAW,
         sample_rate_hertz=8000
     )
 
-    synthesis_input = texttospeech.SynthesisInput(text=text)
+    # Timestamp for CHUNK 2
+    start_time2 = datetime.datetime.now()
+    start_ts2 = time.time()
 
-    # --- Measure ONLY the API call time ---
-    start = time.time()
-    response = client.synthesize_speech(
-        input=synthesis_input,
-        voice=voice,
-        audio_config=audio_config
+    resp_ulaw = client.synthesize_speech(
+        input=texttospeech.SynthesisInput(text=text),
+        voice=voice_params,
+        audio_config=audio_config_ulaw
     )
-    end = time.time()
 
-    latency_ms = round((end - start) * 1000, 2)
+    end_time2 = datetime.datetime.now()
+    end_ts2 = time.time()
 
-    print("\n---------------------------------------")
-    print("Input Text:", text)
-    print("Google TTS API Call Time:", latency_ms, "ms")
-    print("Audio size:", len(response.audio_content), "bytes")
-    print("---------------------------------------\n")
+    latency_ms2 = (end_ts2 - start_ts2) * 1000
 
-def main():
-    print("🔊 Google TTS Latency Tester (Interactive Mode)")
-    print("Type text and press Enter to measure latency.")
-    print("Type 'exit' to quit.\n")
+    with open("output_mulaw.raw", "wb") as f:
+        f.write(resp_ulaw.audio_content)
+
+    print(f"Start Time: {start_time2}")
+    print(f"End Time:   {end_time2}")
+    print(f"MULAW Latency: {latency_ms2:.2f} ms")
+
+    play_mulaw(resp_ulaw.audio_content)
+
+    return latency_ms, latency_ms2
+
+
+# -------------------------------------------------------
+# INTERACTIVE LOOP
+# -------------------------------------------------------
+if __name__ == "__main__":
+    print("===============================================")
+    print("🔵 Google TTS Interactive Tester (with timestamps)")
+    print("Type text and press ENTER to speak.")
+    print("Type 'exit' to quit.")
+    print("===============================================\n")
 
     while True:
         text = input("Enter text: ")
 
-        if text.lower() == "exit":
-            print("Exiting tester...")
+        if text.lower().strip() == "exit":
+            print("\nExiting…")
             break
 
-        if not text.strip():
-            print(" Please enter some text.")
+        if text.strip() == "":
+            print("⚠️ Please enter valid text.")
             continue
 
-        measure_api_latency(text)
+        wav_lat, mulaw_lat = tts_with_timestamps(text)
 
-if __name__ == "__main__":
-    main()
+        print("\n--------------- SUMMARY ----------------")
+        print(f"WAV Latency:   {wav_lat:.2f} ms")
+        print(f"MULAW Latency: {mulaw_lat:.2f} ms")
+        print("-----------------------------------------\n")
 
 export GOOGLE_APPLICATION_CREDENTIALS="service_account.json"
 set GOOGLE_APPLICATION_CREDENTIALS=service_account.json
