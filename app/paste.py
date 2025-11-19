@@ -179,4 +179,60 @@ export async function getGoogleAuthToken(): Promise<string> {
     }
 }
 
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDMybr7oDJgIU8m\nXrOWIgt23gsv5y0NcpbayOA/1Vn9KgMZ3UNimiVWP7YwBd2dndNLrGE8ypy1cZwk\nctKpOY2ETzWXZCM7eECkUfDKUsLEwe/mJjhdoVZisjXa5bd+GuNE3CkReBZA7PRL\nX5tgUaD1d2N2N+uN300uJzQ0a6pnhHLvFT2j37xV68/BDO88ST50LdJUw2tclvxW\nYrG8avNrxGLjcQB/9h/6j94Frd3/oEhyIpTopkoF/Y0MTZE0zIOIc79XNIED5Hzf\nFqy0vKKkbIgfn65YbwQQyJAyj/iWFOvZh6hrzp3RWaPs3omcJGSHNIFz7A79o60d\nUq+Y8+IHAgMBAAECggEABh9wmr4Go41e9FZmEiudTM0TZ+J4VSS1J4BUdsJYI6kL\nID9lpu4OeGPL7lkyGoNORdtFOBqjmCfbiO9x7aNU/KB/bOrHbuRO+ZOiDCxULHIL\n9u/zKJbT95iScMAEaMh5r0gnLUwzFFqIbKZEk/6LBVZ3Bu9FTgNf7pdwXgeH1Gyr\nRdZNXshqQrjMmikH14sDwh05ep3sJD6ZB23M4BKsJzWQ1H+Do1Fue1vEhXYL/rcX\nVzJ0rf9eIQCF1JbFq47iXafuAbc0p4Cda8FUzC/3SA0oIIOTxTxrga8wyYWu1TIA\niMozkAKEWm8tf/H32rFxgwSlgyEnBGNyWcrHwgbD6QKBgQD58w7GspsgdT3CKd0s\n/dUzk9kafv0RPoA4NEwr8f274D1UNCWS4pMwLWwE5uUU7Rko98rlouu9V/91hIbp\ncLOQ7vfsxvt4WcoGiZBxXGvrty47aQ6xifBf64pwjBUf83GWe9Fzff9ns66Zx5zT\n868lZe356LxwkUMPHOVfwL44/QKBgQDRvs5nTAZTuhKNePPzPC2rlkxwUWsPSrBc\nBEdYgEMtKqbMzNWfcW+IwtCvDOI7Qwum8CRmLiIQt7/pBOcfxmfep9/ix/t21war\n8GQAh1JlMjKtdzYIcbzkleMsdmIQR11iYrYAQ6K204j+CYMtM+xqX2Z71/MyN/hS\nEDB89VWIUwKBgQDWz/GvCukPaDN/n4Mam7yT60j24JSWMWT46NleG0e6I+oRaA+y\nwU9GZIMlY1sWNP8emneiC/cWb355fUCFd/qbYQVqVUjiEijynV+qTYfiuTfej1e1\ndZtElKYSPBIbt5mzfw5vd6X9dgtk1o0OC6xHM+bmlQL+q5k6b9ciCABz8QKBgFle\nR2vUBM4f9k+5PZhiB8OYorEov8kgNcy/NfcLj5PrHG8ex9bL6o4HFAvCHZLKmmhi\n4d93wKQG5wpOQHxVeWRxev+R3h9gt0MDhliDUCQ2I0muBaPLcoSjKMyFFHuDLNMC\n5DFwoB/uOeyj+PSFrzITvAMAnGrFVlUA+OgFUJBpAoGBAMFGzGhDmvTEaOzEso4s\nbyorxE3jG9MBaZCrUDk0DhFUYSVxnnSksIx6tw9HhA8XlvvdwQo/eNOOKP8xcQYA\nwndQCOueXB5/c9/DNISB+a2Nv/rhmmBhsyf2E7JabpAiCRbcznVUv/mQrq79mytc\nMQAg73nR3nnDEyWki37RK6ho\n
+#google_tts.py
+import time
+from google.cloud import texttospeech
+
+def measure_api_latency(text):
+    client = texttospeech.TextToSpeechClient()
+
+    voice = texttospeech.VoiceSelectionParams(
+        language_code="en-US",
+        name="en-US-Wavenet-D",
+        ssml_gender=texttospeech.SsmlVoiceGender.MALE
+    )
+
+    audio_config = texttospeech.AudioConfig(
+        audio_encoding=texttospeech.AudioEncoding.MULAW,
+        sample_rate_hertz=8000
+    )
+
+    synthesis_input = texttospeech.SynthesisInput(text=text)
+
+    # --- Measure ONLY the API call time ---
+    start = time.time()
+    response = client.synthesize_speech(
+        input=synthesis_input,
+        voice=voice,
+        audio_config=audio_config
+    )
+    end = time.time()
+
+    latency_ms = round((end - start) * 1000, 2)
+
+    print("\n---------------------------------------")
+    print("Input Text:", text)
+    print("Google TTS API Call Time:", latency_ms, "ms")
+    print("Audio size:", len(response.audio_content), "bytes")
+    print("---------------------------------------\n")
+
+def main():
+    print("🔊 Google TTS Latency Tester (Interactive Mode)")
+    print("Type text and press Enter to measure latency.")
+    print("Type 'exit' to quit.\n")
+
+    while True:
+        text = input("Enter text: ")
+
+        if text.lower() == "exit":
+            print("Exiting tester...")
+            break
+
+        if not text.strip():
+            print(" Please enter some text.")
+            continue
+
+        measure_api_latency(text)
+
+if __name__ == "__main__":
+    main()
