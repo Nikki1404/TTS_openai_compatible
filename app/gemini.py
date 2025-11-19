@@ -1,106 +1,117 @@
 import requests
 import base64
 import struct
-
+import time
 
 # ---------------------------------------------------
-# Convert audio/L16 (PCM 16-bit) → WAV
-# (Python port of convertL16ToWav_() from your JS code)
+# Pre-compiled struct for WAV header (faster)
 # ---------------------------------------------------
-def l16_to_wav(l16_bytes: bytes, sample_rate=24000, num_channels=1):
+WAV_HEADER_STRUCT = struct.Struct("<4sI4s4sIHHIIHH4sI")
+
+def l16_to_wav_fast(l16_bytes: bytes, sample_rate=24000, num_channels=1):
     bits_per_sample = 16
     block_align = num_channels * bits_per_sample // 8
     byte_rate = sample_rate * block_align
     data_size = len(l16_bytes)
-    file_size = 36 + data_size
+    riff_size = 36 + data_size
 
-    header = struct.pack(
-        "<4sI4s4sIHHIIHH4sI",
+    header = WAV_HEADER_STRUCT.pack(
         b"RIFF",
-        file_size,
+        riff_size,
         b"WAVE",
         b"fmt ",
         16,
-        1,                       # PCM
+        1,
         num_channels,
         sample_rate,
         byte_rate,
         block_align,
         bits_per_sample,
         b"data",
-        data_size
+        data_size,
     )
 
     return header + l16_bytes
 
 
 # ---------------------------------------------------
-# Gemini TTS - Single Speaker Version
+# Gemini TTS optimized latency tester
 # ---------------------------------------------------
-def generate_single_speaker_tts(api_key, text):
-    # 🟢 Your actual Gemini endpoint
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/"
-        "models/gemini-2.5-flash-preview-tts:generateContent"
-        f"?key={api_key}"
-    )
-
-    # 🟢 Payload (single speaker)
-    payload = {
+def create_payload(text, voice="Kore"):
+    return {
         "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {"text": text}
-                ]
-            }
+            {"role": "user", "parts": [{"text": text}]}
         ],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {
                 "voiceConfig": {
                     "prebuiltVoiceConfig": {
-                        "voiceName": "Kore"   # ⭐ choose voice here
+                        "voiceName": voice
                     }
                 }
             }
         }
     }
 
-    response = requests.post(url, json=payload)
-    print("Status:", response.status_code)
+
+# ---------------------------------------------------
+# Main TTS function with persistent HTTP session
+# ---------------------------------------------------
+def tts_low_latency(api_key, text, session, url):
+    payload = create_payload(text)
+
+    t_start = time.time()
+    response = session.post(url, json=payload)
+    t_api = time.time()
 
     if response.status_code != 200:
-        print(response.text)
+        print("Error:", response.text)
         return
 
-    data = response.json()
+    inline = response.json()["candidates"][0]["content"]["parts"][0]["inlineData"]
 
-    # Extract inline audio
-    inline = data["candidates"][0]["content"]["parts"][0]["inlineData"]
-    audio_b64 = inline["data"]
-    mime_type = inline["mimeType"]  # e.g., "audio/L16;rate=24000"
+    # Decode L16 PCM audio
+    raw_l16 = base64.b64decode(inline["data"])
 
-    raw_l16 = base64.b64decode(audio_b64)
-
-    # Extract sample rate
     sample_rate = 24000
-    if "rate=" in mime_type:
-        sample_rate = int(mime_type.split("rate=")[1])
+    if "rate=" in inline["mimeType"]:
+        sample_rate = int(inline["mimeType"].split("rate=")[1])
 
-    # Convert raw PCM → WAV
-    wav_bytes = l16_to_wav(raw_l16, sample_rate=sample_rate)
+    # Convert to WAV efficiently
+    wav_bytes = l16_to_wav_fast(raw_l16, sample_rate)
 
-    # Save WAV file
-    with open("single_speaker.wav", "wb") as f:
+    t_end = time.time()
+
+    # Save (fast I/O buffered write)
+    with open("output.wav", "wb", buffering=65536) as f:
         f.write(wav_bytes)
 
-    print("Saved → single_speaker.wav")
+    print("\n====== LOW LATENCY REPORT ======")
+    print(f"API Time:            {(t_api - t_start)*1000:.2f} ms")
+    print(f"Processing Time:     {(t_end - t_api)*1000:.2f} ms")
+    print(f"TOTAL Time:          {(t_end - t_start)*1000:.2f} ms")
+    print("Saved → output.wav\n")
 
 
+# ---------------------------------------------------
+# Interactive Loop
+# ---------------------------------------------------
 if __name__ == "__main__":
-    # 🔥 THIS IS WHERE YOU PASS YOUR GEMINI API KEY
-    API_KEY = "YOUR_REAL_GEMINI_API_KEY_HERE"
+    API_KEY = "YOUR_API_KEY_HERE"
 
-    text = "Hello! This is a test of Gemini single speaker text to speech."
-    generate_single_speaker_tts(API_KEY, text)
+    session = requests.Session()  # Persistent connection = big speed win
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/"
+        "models/gemini-2.5-flash-preview-tts:generateContent"
+        f"?key={API_KEY}"
+    )
+
+    print("Gemini Low Latency TTS Tester (type 'exit' to quit)\n")
+
+    while True:
+        text = input("Enter text: ").strip()
+        if text.lower() == "exit":
+            break
+        tts_low_latency(API_KEY, text, session, url)
