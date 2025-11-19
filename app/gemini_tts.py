@@ -1,17 +1,12 @@
 import os
 import time
-import google.generativeai as genai
-from packaging import version
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+import google.generativeai as genai
 
 
-GENAI_VERSION = version.parse(genai.__version__)
-print("Using google-generativeai =", GENAI_VERSION)
-
-
-class GeminiTelephonyTTS:
+class GeminiTTSLatency:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
@@ -20,96 +15,117 @@ class GeminiTelephonyTTS:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel("gemini-tts-1")
 
-    def now_us(self):
+    @staticmethod
+    def now_us():
+        """High precision microsecond timer."""
         return time.perf_counter_ns() / 1000
 
-    def synthesize_interactive(self):
-        print("\n===== Gemini TTS Interactive Mode =====")
-        print("Type text to synthesize. Type 'exit' to quit.\n")
-
-        while True:
-            text = input("You: ").strip()
-            if text.lower() == "exit":
-                break
-            if text:
-                self.generate_and_play(text)
-
-    # μ-law encoding
     def pcm16_to_mulaw(self, pcm16):
-        mu = 255
+        """Encode PCM16 → μ-law."""
+        MU = 255
         pcm = pcm16.astype(np.float32) / 32768.0
-        pcm = np.sign(pcm) * np.log1p(mu * np.abs(pcm)) / np.log1p(mu)
-        return ((pcm + 1) * 127.5).astype(np.uint8)
+        mulaw = np.sign(pcm) * np.log1p(MU * np.abs(pcm)) / np.log1p(MU)
+        return ((mulaw + 1) * 127.5).astype(np.uint8)
 
-    # μ-law decoding
     def mulaw_to_pcm16(self, mulaw):
-        mu = 255
+        """Decode μ-law → PCM16."""
+        MU = 255
         x = mulaw.astype(np.float32) / 127.5 - 1
-        pcm = np.sign(x) * ((1 + mu) ** np.abs(x) - 1) / mu
+        pcm = np.sign(x) * ((1 + MU) ** np.abs(x) - 1) / MU
         return (pcm * 32767).astype(np.int16)
 
-    def generate_and_play(self, text):
+    def generate_and_measure(self, text):
 
-        # Detect API change
-        new_api = GENAI_VERSION >= version.parse("0.7.0")
+        print("\n====== GEMINI TTS FULL LATENCY REPORT ======\n")
+        print("Input Text:", text)
+        print("--------------------------------------------")
 
-        print("\nGenerating with", ("NEW API" if new_api else "OLD API"), "...\n")
-
+        # ---------------------------------------------------
+        # 1) GEMINI TTS API CALL LATENCY (TTFB + TOTAL)
+        # ---------------------------------------------------
         api_start = self.now_us()
 
-        if new_api:
-            # ✔ NEW GEMINI TTS API
-            response = self.model.generate_content(
-                text,
-                generation_config={
-                    "response_mime_type": "audio/wav",
-                    "voice_config": {"voice_name": "Pine"},
-                }
-            )
-        else:
-            # ✔ FALLBACK for older SDKs
-            response = self.model.generate_content(
-                {
-                    "text": text,
-                    "audio": {
-                        "voice": "Pine",
-                        "format": "wav",
-                    }
-                }
-            )
+        response = self.model.generate_content(
+            text,
+            generation_config={
+                "response_mime_type": "audio/wav",
+                "voice_config": {"voice_name": "Pine"}
+            }
+        )
 
-        api_first = self.now_us()
+        api_first_byte = self.now_us()     # TTFB (first chunk received)
+
         wav_bytes = response.candidates[0].content[0].binary
-        api_end = self.now_us()
 
-        print("TTFB:", (api_first - api_start)/1000, "ms")
-        print("Total WAV latency:", (api_end - api_start)/1000, "ms")
+        api_end = self.now_us()            # Full response finished
 
-        # Save WAV
+        # Latency Calculations
+        ttfb_us = api_first_byte - api_start
+        total_api_us = api_end - api_start
+
+        print(f"TTFB (Time to First Byte):   {ttfb_us/1000:.2f} ms")
+        print(f"API Total Latency (WAV):     {total_api_us/1000:.2f} ms")
+        print(f"WAV Bytes Received:          {len(wav_bytes)} bytes\n")
+
+        # ---------------------------------------------------
+        # 2) WAV Saving + Playback Latency
+        # ---------------------------------------------------
         with open("gemini.wav", "wb") as f:
             f.write(wav_bytes)
 
-        # Play WAV
-        data, sr = sf.read("gemini.wav")
-        sd.play(data, sr)
-        sd.wait()
+        wav_data, wav_sr = sf.read("gemini.wav")
 
-        # MULAW conversion
+        print("Playing WAV...")
+        wav_play_start = self.now_us()
+        sd.play(wav_data, wav_sr)
+        sd.wait()
+        wav_play_end = self.now_us()
+
+        print(f"WAV Playback Latency:        {(wav_play_end - wav_play_start)/1000:.2f} ms\n")
+
+        # ---------------------------------------------------
+        # 3) WAV → MULAW Conversion Latency
+        # ---------------------------------------------------
         conv_start = self.now_us()
-        pcm16 = (data * 32767).astype(np.int16)
+
+        pcm16 = (wav_data * 32767).astype(np.int16)
         mulaw = self.pcm16_to_mulaw(pcm16)
+
         conv_end = self.now_us()
 
-        print("MULAW conversion latency:", (conv_end - conv_start)/1000, "ms")
+        mulaw_us = conv_end - conv_start
 
-        # Play MULAW
-        pcm16_dec = self.mulaw_to_pcm16(mulaw)
-        sd.play(pcm16_dec.astype(np.float32) / 32767.0, 8000)
+        print(f"MULAW Conversion Latency:    {mulaw_us/1000:.2f} ms")
+        print(f"MULAW Size:                  {len(mulaw)} bytes\n")
+
+        # ---------------------------------------------------
+        # 4) MULAW Playback Latency
+        # ---------------------------------------------------
+        pcm16_decoded = self.mulaw_to_pcm16(mulaw).astype(np.float32) / 32767.0
+
+        print("Playing MULAW (8 kHz telephony)...")
+        mulaw_play_start = self.now_us()
+        sd.play(pcm16_decoded, 8000)
         sd.wait()
+        mulaw_play_end = self.now_us()
 
-        print("MULAW played.\n")
+        print(f"MULAW Playback Latency:      {(mulaw_play_end - mulaw_play_start)/1000:.2f} ms")
+
+        print("\nSaved:")
+        print(" - gemini.wav")
+        print(" - gemini_output_mulaw.raw\n")
+
+        # Save raw μ-law
+        with open("gemini_output_mulaw.raw", "wb") as f:
+            f.write(mulaw.tobytes())
+
+        print("============== END REPORT ==============\n")
 
 
 if __name__ == "__main__":
-    tts = GeminiTelephonyTTS()
-    tts.synthesize_interactive()
+    tts = GeminiTTSLatency()
+    while True:
+        text = input("Enter text (or 'exit'): ").strip()
+        if text.lower() == "exit":
+            break
+        tts.generate_and_measure(text)
