@@ -56,3 +56,6 @@ if __name__ == "__main__":
         if text.lower() == "exit":
             break
         tts_and_measure(text)
+
+{'error': {'code': 400, 'message': '* GenerateContentRequest.generation_config.response_mime_type: allowed mimetypes are `text/plain`, `application/json`, `application/xml`, `application/yaml` and `text/x.enum`.\n', 'status': 'INVALID_ARGUMENT'}}
+Enter text (or 'exit'):
