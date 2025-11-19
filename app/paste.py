@@ -97,3 +97,85 @@ export class GeminiTTSService implements TTSService {
     }
 }
 
+#google_auth-utils.js
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getGoogleAuthToken = void 0;
+const google_auth_library_1 = require("google-auth-library");
+const logger_1 = __importDefault(require("../common/logger"));
+let cachedToken = null;
+/**
+ * Generates a short-lived OAuth2 access token for Google Cloud APIs.
+ * Caches the token in memory to avoid generating a new one for every session.
+ */
+async function getGoogleAuthToken() {
+    // If we have a valid, non-expired token, return it.
+    if (cachedToken && cachedToken.expiry > Date.now() + 60 * 1000) { // 60s buffer
+        return cachedToken.token;
+    }
+    try {
+        logger_1.default.info('Generating new Google Cloud auth token.');
+        const auth = new google_auth_library_1.GoogleAuth({
+            scopes: 'https://www.googleapis.com/auth/cloud-platform',
+        });
+        const accessToken = await auth.getAccessToken();
+        if (!accessToken) {
+            throw new Error('Failed to retrieve access token or expiry from Google Auth.');
+        }
+        cachedToken = {
+            token: accessToken,
+            expiry: Date.now() + (60 * 1000),
+        };
+        return cachedToken.token;
+    }
+    catch (err) {
+        logger_1.default.error({ err }, 'Error generating Google Cloud auth token');
+        throw err;
+    }
+}
+exports.getGoogleAuthToken = getGoogleAuthToken;
+//# sourceMappingURL=google-auth-utils.js.map
+
+google-auth-utils.ts
+
+import { GoogleAuth } from 'google-auth-library';
+import logger from '../common/logger';
+
+let cachedToken: { token: string; expiry: number } | null = null;
+
+/**
+ * Generates a short-lived OAuth2 access token for Google Cloud APIs.
+ * Caches the token in memory to avoid generating a new one for every session.
+ */
+export async function getGoogleAuthToken(): Promise<string> {
+    // If we have a valid, non-expired token, return it.
+    if (cachedToken && cachedToken.expiry > Date.now() + 60 * 1000) { // 60s buffer
+        return cachedToken.token;
+    }
+
+    try {
+        logger.info('Generating new Google Cloud auth token.');
+        const auth = new GoogleAuth({
+            scopes: 'https://www.googleapis.com/auth/cloud-platform',
+        });
+        const accessToken = await auth.getAccessToken();
+
+        if (!accessToken) {
+            throw new Error('Failed to retrieve access token or expiry from Google Auth.');
+        }
+
+        cachedToken = {
+            token: accessToken,
+            expiry: Date.now() + (60 * 1000),
+        };
+
+        return cachedToken.token;
+    } catch (err) {
+        logger.error({ err }, 'Error generating Google Cloud auth token');
+        throw err;
+    }
+}
+
