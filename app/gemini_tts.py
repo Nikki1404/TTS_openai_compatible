@@ -13,14 +13,11 @@ class GeminiTTSLatency:
             raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
 
         genai.configure(api_key=api_key)
-
-        # THIS IS THE CORRECT MODEL FOR TTS
         self.model = genai.GenerativeModel("gemini-tts-1")
 
     def now_us(self):
         return time.perf_counter_ns() / 1000
 
-    # μ-law encoding
     def pcm16_to_mulaw(self, pcm16):
         MU = 255
         pcm = pcm16.astype(np.float32) / 32768.0
@@ -39,11 +36,12 @@ class GeminiTTSLatency:
         print(f"Text: {text}")
         print("-------------------------------------")
 
-        # NEW OFFICIAL 0.8.0 API FORMAT
+        # CORRECT API FORMAT FOR SDK 0.8.5
         generation_config = {
-            "audio_config": {
+            "response_mime_type": "audio/wav",
+            "audio": {
                 "voice_name": "Pine",
-                "audio_encoding": "LINEAR16"     # WAV PCM
+                "audio_encoding": "LINEAR16"   # WAV PCM
             }
         }
 
@@ -63,23 +61,21 @@ class GeminiTTSLatency:
         print(f"Total API latency:          {(api_end - api_start)/1000:.2f} ms")
         print(f"WAV Size:                   {len(wav_bytes)} bytes\n")
 
-        # ---------------- WAV PLAYBACK ----------------
+        # Save WAV
         with open("gemini.wav", "wb") as f:
             f.write(wav_bytes)
 
+        # WAV PLAY
         wav_data, wav_sr = sf.read("gemini.wav")
-
         print("Playing WAV...")
         wav_play_start = self.now_us()
         sd.play(wav_data, wav_sr)
         sd.wait()
         wav_play_end = self.now_us()
-
         print(f"WAV Playback Latency:       {(wav_play_end - wav_play_start)/1000:.2f} ms\n")
 
-        # ---------------- MULAW CONVERSION ----------------
+        # MULAW CONVERSION
         pcm16 = (wav_data * 32767).astype(np.int16)
-
         conv_start = self.now_us()
         mulaw = self.pcm16_to_mulaw(pcm16)
         conv_end = self.now_us()
@@ -87,10 +83,9 @@ class GeminiTTSLatency:
         print(f"MULAW Conversion Latency:   {(conv_end - conv_start)/1000:.2f} ms")
         print(f"MULAW Size:                 {len(mulaw)} bytes\n")
 
-        # ---------------- MULAW Playback ----------------
+        # MULAW PLAYBACK
         pcm16_decoded = self.mulaw_to_pcm16(mulaw).astype(np.float32) / 32767.0
         print("Playing MULAW (8kHz)...")
-
         mulaw_play_start = self.now_us()
         sd.play(pcm16_decoded, 8000)
         sd.wait()
@@ -101,6 +96,7 @@ class GeminiTTSLatency:
         print("Saved files:")
         print(" - gemini.wav")
         print(" - gemini_output_mulaw.raw")
+
         with open("gemini_output_mulaw.raw", "wb") as f:
             f.write(mulaw.tobytes())
 
