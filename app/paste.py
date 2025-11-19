@@ -236,3 +236,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+export GOOGLE_APPLICATION_CREDENTIALS="service_account.json"
+set GOOGLE_APPLICATION_CREDENTIALS=service_account.json
+$env:GOOGLE_APPLICATION_CREDENTIALS="service_account.json"
