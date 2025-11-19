@@ -1,26 +1,21 @@
 import time
 import requests
 import base64
-import json
 
 API_KEY = "YOUR_API_KEY"
-MODEL = "models/gemini-1.5-flash"     # TTS-enabled model
+MODEL = "models/gemini-1.5-tts"   # IMPORTANT: Actual TTS model
 
 def tts_and_measure(text: str):
-    print("\n====== GEMINI TTS LATENCY (REST API) ======")
-    print(f"Input Text: {text}")
-    print("------------------------------------------")
+    print("\n====== GEMINI TTS LATENCY ======")
+    print(f"Input: {text}")
+    print("--------------------------------")
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/{MODEL}:generateContent?key={API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/{MODEL}:generateAudio?key={API_KEY}"
 
     payload = {
-        "contents": [{
-            "parts": [{
-                "text": text
-            }]
-        }],
-        "generationConfig": {
-            "response_mime_type": "audio/wav"   # or audio/mp3
+        "text": text,
+        "audioConfig": {
+            "audioEncoding": "LINEAR16"   # produces WAV PCM16
         }
     }
 
@@ -28,34 +23,32 @@ def tts_and_measure(text: str):
     response = requests.post(url, json=payload)
     t_api = time.time()
 
+    if response.status_code != 200:
+        print("❌ API Error:", response.text)
+        return
+
     data = response.json()
 
-    # extract audio base64
-    audio_base64 = data["candidates"][0]["content"]["parts"][0]["inline_data"]["data"]
-    audio_bytes = base64.b64decode(audio_base64)
+    # Extract audio
+    audio_b64 = data["audioContent"]
+    audio_bytes = base64.b64decode(audio_b64)
 
     t_decode = time.time()
 
-    # Latency summary
-    print(f"API Response Time:        {(t_api - t_start)*1000:.2f} ms")
-    print(f"Audio Decode Time:        {(t_decode - t_api)*1000:.2f} ms")
-    print(f"Total Time:               {(t_decode - t_start)*1000:.2f} ms")
-    print(f"Audio Output Size (KB):   {len(audio_bytes)/1024:.2f}")
+    print(f"API Response Time:  {(t_api - t_start)*1000:.2f} ms")
+    print(f"Decode Time:        {(t_decode - t_api)*1000:.2f} ms")
+    print(f"Total Time:         {(t_decode - t_start)*1000:.2f} ms")
+    print(f"Audio Size:         {len(audio_bytes)/1024:.2f} KB")
 
-    # Write wav file
     with open("output.wav", "wb") as f:
         f.write(audio_bytes)
 
-    print("\nSaved audio to output.wav")
-    print("==========================================\n")
+    print("Saved: output.wav\n")
 
 
 if __name__ == "__main__":
     while True:
-        text = input("Enter text (or 'exit'): ")
+        text = input("Enter text (or 'exit'): ").strip()
         if text.lower() == "exit":
             break
         tts_and_measure(text)
-
-{'error': {'code': 400, 'message': '* GenerateContentRequest.generation_config.response_mime_type: allowed mimetypes are `text/plain`, `application/json`, `application/xml`, `application/yaml` and `text/x.enum`.\n', 'status': 'INVALID_ARGUMENT'}}
-Enter text (or 'exit'):
