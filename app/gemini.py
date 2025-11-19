@@ -1,47 +1,53 @@
 import time
+import requests
 import base64
-from google import generativeai as genai
+import json
 
-API_KEY = "YOUR_API_KEY"   # or use environment variable
-
-genai.configure(api_key=API_KEY)
-
-model = genai.GenerativeModel("models/gemini-1.5-pro-tts")
-
+API_KEY = "YOUR_API_KEY"
+MODEL = "models/gemini-1.5-flash"     # TTS-enabled model
 
 def tts_and_measure(text: str):
-    print("\n====== GEMINI TTS LATENCY TEST ======")
+    print("\n====== GEMINI TTS LATENCY (REST API) ======")
     print(f"Input Text: {text}")
-    print("------------------------------------")
+    print("------------------------------------------")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/{MODEL}:generateContent?key={API_KEY}"
+
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": text
+            }]
+        }],
+        "generationConfig": {
+            "response_mime_type": "audio/wav"   # or audio/mp3
+        }
+    }
 
     t_start = time.time()
+    response = requests.post(url, json=payload)
+    t_api = time.time()
 
-    # TTS call
-    response = model.generate_audio(
-        text=text,
-        voice="FEMALE_1",  # Options: FEMALE_1, FEMALE_2, MALE_1, MALE_2
-        encoding="wav"      # wav / mp3
-    )
+    data = response.json()
 
-    t_after_api = time.time()
+    # extract audio base64
+    audio_base64 = data["candidates"][0]["content"]["parts"][0]["inline_data"]["data"]
+    audio_bytes = base64.b64decode(audio_base64)
 
-    # Extract audio
-    audio_bytes = base64.b64decode(response.audio.data)
+    t_decode = time.time()
 
-    t_after_decode = time.time()
+    # Latency summary
+    print(f"API Response Time:        {(t_api - t_start)*1000:.2f} ms")
+    print(f"Audio Decode Time:        {(t_decode - t_api)*1000:.2f} ms")
+    print(f"Total Time:               {(t_decode - t_start)*1000:.2f} ms")
+    print(f"Audio Output Size (KB):   {len(audio_bytes)/1024:.2f}")
 
-    # Latency breakdown
-    print(f"API Response Time:        {(t_after_api - t_start)*1000:.2f} ms")
-    print(f"Audio Decode Time:        {(t_after_decode - t_after_api)*1000:.2f} ms")
-    print(f"Total Time:               {(t_after_decode - t_start)*1000:.2f} ms")
-    print(f"Audio Output Size (KB):   {len(audio_bytes)/1024:.2f} KB")
-
-    # Save audio
+    # Write wav file
     with open("output.wav", "wb") as f:
         f.write(audio_bytes)
 
-    print("\nSaved as output.wav")
-    print("====================================\n")
+    print("\nSaved audio to output.wav")
+    print("==========================================\n")
 
 
 if __name__ == "__main__":
