@@ -129,3 +129,62 @@ if __name__ == "__main__":
         if text.lower() == "exit":
             break
         tts.generate_and_measure(text)
+
+(env) PS C:\Users\re_nikitav\tts> python .\gemini-tts.py      
+Traceback (most recent call last):
+  File "C:\Users\re_nikitav\tts\gemini-tts.py", line 4, in <module>
+    from packaging import version
+ModuleNotFoundError: No module named 'packaging'
+(env) PS C:\Users\re_nikitav\tts> python .\gemini-tts.py
+Enter text (or 'exit'): hi
+
+====== GEMINI TTS FULL LATENCY REPORT ======
+
+Input Text: hi
+--------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\re_nikitav\tts\env\Lib\site-packages\proto\marshal\rules\message.py", line 36, in to_proto
+    return self._descriptor(**value)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^
+ValueError: Protocol message GenerationConfig has no "voice_config" field.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\re_nikitav\tts\gemini-tts.py", line 131, in <module>
+    tts.generate_and_measure(text)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\re_nikitav\tts\gemini-tts.py", line 48, in generate_and_measure
+    response = self.model.generate_content(
+        text,
+    ...<3 lines>...
+        }
+    )
+  File "C:\Users\re_nikitav\tts\env\Lib\site-packages\google\generativeai\generative_models.py", line 305, in generate_content
+    request = self._prepare_request(
+        contents=contents,
+    ...<3 lines>...
+        tool_config=tool_config,
+    )
+  File "C:\Users\re_nikitav\tts\env\Lib\site-packages\google\generativeai\generative_models.py", line 165, in _prepare_request
+    return protos.GenerateContentRequest(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        model=self._model_name,
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        cached_content=self.cached_content,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\re_nikitav\tts\env\Lib\site-packages\proto\message.py", line 728, in __init__ 
+    pb_value = marshal.to_proto(pb_type, value)
+  File "C:\Users\re_nikitav\tts\env\Lib\site-packages\proto\marshal\marshal.py", line 235, in to_proto
+    pb_value = self.get_rule(proto_type=proto_type).to_proto(value)
+  File "C:\Users\re_nikitav\tts\env\Lib\site-packages\proto\marshal\rules\message.py", line 46, in to_proto
+    return self._wrapper(value)._pb
+           ~~~~~~~~~~~~~^^^^^^^
+  File "C:\Users\re_nikitav\tts\env\Lib\site-packages\proto\message.py", line 724, in __init__ 
+    raise ValueError(
+        "Unknown field for {}: {}".format(self.__class__.__name__, key)
+    )
+ValueError: Unknown field for GenerationConfig: voice_config
