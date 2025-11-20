@@ -510,149 +510,98 @@ export class GeminiTTSService implements TTSService {
 }
 
 
-import os
-import time
-import numpy as np
-import google.generativeai as genai
-from pydub import AudioSegment
-from pydub.playback import play
 
 
-class GeminiTelephonyTTS:
-    def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is not set.")
 
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-tts-1")
+@app.websocket("/ws")
+async def ws(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:   # 🔥 allow multiple messages in same connection
+            start = time.time()
+            print(f'----------START TIME: {start}------------')
 
-    @staticmethod
-    def now_us():
-        return time.perf_counter_ns() / 1000  # microseconds
+            req = await websocket.receive_text()
+            cfg = json.loads(req)
 
-    def synthesize_interactive(self):
-        print("\n===== Gemini TTS Interactive Telephony Mode =====")
-        print("Type something to synthesize. Type 'exit' to quit.\n")
+            text = str(cfg.get("text", "")).strip()
+            voice = str(cfg.get("voice", "af_heart"))
+            speed = float(cfg.get("speed", 1.0))
+            fmt = str(cfg.get("format", "f32")).lower()
 
-        while True:
-            text = input("You: ").strip()
-            if text.lower() in ["exit", "quit"]:
-                print("Exiting...")
-                break
+            if not text:
+                await websocket.send_text(json.dumps({"type": "done", "error": "empty text"}))
+                continue   # don’t close, wait for next message
 
-            if text:
-                self.generate_and_play(text)
+            await websocket.send_text(json.dumps({
+                "type": "meta",
+                "sample_rate": SR,
+                "channels": 1,
+                "sample_format": fmt
+            }))
 
-    def generate_and_play(self, text):
-        print("\nGenerating audio...\n")
+            t0 = time.perf_counter()
+            only_pipeline_start = time.time()
+            print(f'----------ONLY PIPELINE START TIME: {only_pipeline_start}------------')
+            ttfa_sent = False
+            segments = 0
+            audio_total_s = 0.0
+            buf: List[np.ndarray] = []
 
-        # -----------------------------------------
-        # 1) GEMINI TTS → WAV (measure latency)
-        # -----------------------------------------
-        api_start = self.now_us()
-        response = self.model.generate_content(
-            text,
-            generation_config={
-                "response_mime_type": "audio/wav",
-                "voice_config": {"voice_name": "Pine"},
-            }
-        )
-        api_first_byte = self.now_us()
+            gen = pipeline(text, voice=voice, speed=speed, split_pattern=r"\n+")
+            
+            for (_gs, _ps, audio) in gen:
+                now = time.perf_counter()
+                if not ttfa_sent:
+                    await websocket.send_text(json.dumps({"type": "ttfa", "ms": (now - t0) * 1000.0}))
+                    ttfa_sent = True
 
-        wav_bytes = response.candidates[0].content[0].binary
-        api_end = self.now_us()
+                a = as_numpy(audio)
+                buf.append(a)
+                segments += 1
+                audio_total_s += a.size / SR
 
-        ttfb_us = api_first_byte - api_start
-        wav_latency_us = api_end - api_start
+                # Stream only for PCM
+                if fmt in {"f32", "s16"}:
+                    if fmt == "s16":
+                        pcm = (np.clip(a, -1, 1) * 32767.0).astype(np.int16).tobytes()
+                    else:
+                        pcm = a.tobytes()
+                    await websocket.send_bytes(pcm)
+            
+            print(f"---------------ONLY PIPELINE Time taken: {time.time() - only_pipeline_start} seconds-----------")
 
-        print("========== WAV LATENCY ==========")
-        print(f"TTFB:                    {ttfb_us/1000:.2f} ms")
-        print(f"Full WAV Latency:        {wav_latency_us/1000:.2f} ms")
-        print(f"WAV Size:                {len(wav_bytes)} bytes")
-        print("=================================\n")
+            total_ms = (time.perf_counter() - t0) * 1000.0
+            rtf = (total_ms / 1000.0) / max(1e-6, audio_total_s)
+            
 
-        # Save WAV
-        wav_path = "gemini_output.wav"
-        with open(wav_path, "wb") as f:
-            f.write(wav_bytes)
+            # Encode full output for compressed formats
+            if fmt in {"wav", "mp3", "ogg", "flac"}:
+                full_audio = np.concatenate(buf) if len(buf) > 1 else buf[0]
+                wav_io = BytesIO()
+                sf.write(wav_io, np.clip(full_audio, -1, 1), SR, format="WAV", subtype="PCM_16")
+                wav_io.seek(0)
+                audio_seg = AudioSegment.from_wav(wav_io)
+                out_io = BytesIO()
+                audio_seg.export(out_io, format=fmt)
+                await websocket.send_bytes(out_io.getvalue())
 
-        # ---- PLAY WAV ----
-        print("Playing WAV...")
-        wav_audio = AudioSegment.from_file(wav_path, format="wav")
-        play(wav_audio)
+            await websocket.send_text(json.dumps({
+                "type": "done",
+                "total_ms": total_ms,
+                "audio_ms": audio_total_s * 1000.0,
+                "segments": segments,
+                "rtf": rtf,
+                "error": None
+            }))
+            print(f"---------------Time taken: {time.time() - start} seconds-----------")
 
-        # -----------------------------------------
-        # 2) CONVERT WAV → MULAW 8KHZ + measure latency
-        # -----------------------------------------
-        conv_start = self.now_us()
-
-        mulaw_audio = (
-            wav_audio.set_frame_rate(8000)
-            .set_channels(1)
-            .set_sample_width(1)  # 8-bit μ-law
-        )
-        mulaw_bytes = mulaw_audio.raw_data
-
-        conv_end = self.now_us()
-        mulaw_conv_us = conv_end - conv_start
-
-        print("========== MULAW LATENCY ==========")
-        print(f"MULAW Conversion Latency: {mulaw_conv_us/1000:.2f} ms")
-        print(f"MULAW Size:               {len(mulaw_bytes)} bytes")
-        print("====================================\n")
-
-        # Save MULAW
-        mulaw_path = "gemini_output_mulaw.raw"
-        with open(mulaw_path, "wb") as f:
-            f.write(mulaw_bytes)
-
-        # -----------------------------------------
-        # 3) PLAY MULAW  (convert μ-law → PCM → playback)
-        # -----------------------------------------
-        print("Playing MULAW...")
-
-        # Convert μ-law -> PCM 16-bit
-        mulaw_array = np.frombuffer(mulaw_bytes, dtype=np.uint8)
-        pcm16 = self.mulaw_to_pcm16(mulaw_array)
-
-        # Convert to AudioSegment for playback
-        pcm_audio = AudioSegment(
-            pcm16.tobytes(),
-            frame_rate=8000,
-            sample_width=2,
-            channels=1
-        )
-
-        mulaw_play_start = self.now_us()
-        play(pcm_audio)
-        mulaw_play_end = self.now_us()
-
-        print(f"MULAW Playback Latency:   {(mulaw_play_end - mulaw_play_start)/1000:.2f} ms\n")
-
-        print("Saved:")
-        print(f" - {wav_path}")
-        print(f" - {mulaw_path}")
-        print("----------------------------------------------\n")
-
-    # μ-law → PCM converter
-    @staticmethod
-    def mulaw_to_pcm16(mulaw: np.ndarray) -> np.ndarray:
-        MULAW_MAX = 0x1FFF
-        MULAW_BIAS = 33
-
-        mulaw = ~mulaw
-        sign = (mulaw & 0x80) >> 7
-        exponent = (mulaw & 0x70) >> 4
-        mantissa = mulaw & 0x0F
-
-        magnitude = ((mantissa << 4) + MULAW_BIAS) << exponent
-        pcm = magnitude if sign == 0 else -magnitude
-        return pcm.astype(np.int16)
-
-
-if __name__ == "__main__":
-    tts = GeminiTelephonyTTS()
-    tts.synthesize_interactive()
-
-
+    except WebSocketDisconnect:
+        logging.warning("Client disconnected.")
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        try:
+            await websocket.send_text(json.dumps({"type": "done", "error": str(e)}))
+        except Exception:
+            pass
+        await websocket.close()
