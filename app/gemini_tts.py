@@ -255,10 +255,6 @@ except Exception:
 
 from kokoro import KPipeline
 
-
-# ==========================================
-# Load Config
-# ==========================================
 with open("config.yaml", "r") as f:
     CONFIG = yaml.safe_load(f)
 
@@ -272,29 +268,16 @@ pipeline = None
 CHUNK_ENABLED = CONFIG.get("chunking", {}).get("enabled", True)
 WORD_THRESHOLD = int(CONFIG.get("chunking", {}).get("word_threshold", 20))
 
-
-# ==========================================
-# Helper: Convert tensor → numpy
-# ==========================================
 def as_numpy(x):
     if torch is not None and isinstance(x, torch.Tensor):
         return x.detach().cpu().numpy().astype(np.float32).reshape(-1)
     return np.asarray(x, dtype=np.float32).reshape(-1)
 
-
-# ==========================================
-# GPU Selection
-# ==========================================
 def get_device() -> str:
     if torch is not None and torch.cuda.is_available():
         return "cuda"
     return "cpu"
 
-
-# ==========================================
-# Intelligent Chunking Logic
-# (Paragraph >20 words OR sentence >20 words)
-# ==========================================
 def chunk_text(text: str, max_words: int = 20) -> list[str]:
     text = text.strip()
     if not text:
@@ -324,10 +307,6 @@ def chunk_text(text: str, max_words: int = 20) -> list[str]:
 
     return chunks
 
-
-# ==========================================
-# Startup: Load Kokoro with CUDA
-# ==========================================
 @app.on_event("startup")
 async def _init():
     global pipeline
@@ -336,12 +315,9 @@ async def _init():
         lang_code=CONFIG["lang_code"],
         device=device
     )
-    logging.info(f"🚀 Kokoro TTS initialized (device={device}, lang={CONFIG['lang_code']})")
+    logging.info(f" Kokoro TTS initialized (device={device}, lang={CONFIG['lang_code']})")
 
 
-# ==========================================
-# Root
-# ==========================================
 @app.get("/", response_class=PlainTextResponse)
 def root():
     return (
@@ -350,10 +326,6 @@ def root():
         "Formats: f32 | s16 | wav | mp3 | ogg | flac\n"
     )
 
-
-# ==========================================
-# WebSocket TTS Endpoint (Improved)
-# ==========================================
 @app.websocket("/ws")
 async def ws(websocket: WebSocket):
     await websocket.accept()
@@ -361,9 +333,6 @@ async def ws(websocket: WebSocket):
 
     try:
         while True:
-            # ------------------------------
-            # Your start-time measurement
-            # ------------------------------
             start = time.time()
             print(f"----------START TIME: {start}------------")
 
@@ -379,7 +348,6 @@ async def ws(websocket: WebSocket):
                 await websocket.send_text(json.dumps({"type": "done", "error": "empty text"}))
                 continue
 
-            # Meta response
             await websocket.send_text(json.dumps({
                 "type": "meta",
                 "sample_rate": SR,
@@ -387,17 +355,10 @@ async def ws(websocket: WebSocket):
                 "sample_format": fmt
             }))
 
-            # ------------------------------
-            # Chunking decision
-            # ------------------------------
             if CHUNK_ENABLED:
                 chunks = chunk_text(text, WORD_THRESHOLD)
             else:
                 chunks = [text]
-
-            # ------------------------------
-            # Pipeline timing
-            # ------------------------------
             only_pipeline_start = time.time()
             print(f"----------ONLY PIPELINE START TIME: {only_pipeline_start}------------")
 
@@ -406,10 +367,6 @@ async def ws(websocket: WebSocket):
             segments = 0
             audio_total_s = 0.0
             buf: List[np.ndarray] = []
-
-            # =====================================
-            # Stream each chunk through Kokoro
-            # =====================================
             for chunk in chunks:
                 gen = pipeline(
                     chunk,
@@ -433,10 +390,6 @@ async def ws(websocket: WebSocket):
 
                     segments += 1
                     audio_total_s += a.size / SR
-
-                    # -----------------------------
-                    # Stream PCM immediately (minimal processing)
-                    # -----------------------------
                     if fmt == "f32":
                         await websocket.send_bytes(a.tobytes())
                     elif fmt == "s16":
@@ -444,16 +397,8 @@ async def ws(websocket: WebSocket):
                         await websocket.send_bytes(pcm16.tobytes())
 
             print(f"---------------ONLY PIPELINE Time taken: {time.time() - only_pipeline_start} seconds-----------")
-
-            # -----------------------------
-            # Summary calculation
-            # -----------------------------
             total_ms = (time.perf_counter() - t0) * 1000.0
             rtf = (total_ms / 1000.0) / max(1e-6, audio_total_s)
-
-            # -----------------------------
-            # Encoded formats
-            # -----------------------------
             if fmt in {"wav", "mp3", "ogg", "flac"}:
                 full_audio = np.concatenate(buf) if len(buf) > 1 else buf[0]
 
@@ -471,10 +416,7 @@ async def ws(websocket: WebSocket):
                     out_io = BytesIO()
                     audio_seg.export(out_io, format=fmt)
                     await websocket.send_bytes(out_io.getvalue())
-
-            # -----------------------------
-            # DONE message
-            # -----------------------------
+                  
             await websocket.send_text(json.dumps({
                 "type": "done",
                 "total_ms": total_ms,
@@ -499,10 +441,6 @@ async def ws(websocket: WebSocket):
     finally:
         logging.info("connection closed")
 
-
-# ==========================================
-# Main Runner
-# ==========================================
 if __name__ == "__main__":
     uvicorn.run(
         "ws_kokoro_server:app",
