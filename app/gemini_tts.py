@@ -225,3 +225,8 @@ COPY . .
 
 CMD ["python", "main.py"]
 
+We need to work on the latency part in kokoro. You can implement the below things in the current codebase.
+
+1. need to add cuda in kokoro pipeline to utilise gpu.
+2. for longer pragraph with multiple sentences (more than 20 words), need to do chunking
+3. and minimize the processings after audio generation from pipeline and stream it to user
