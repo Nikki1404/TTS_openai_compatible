@@ -228,6 +228,9 @@ CMD ["python", "main.py"]
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import json
 import time
 import os
@@ -238,6 +241,7 @@ from io import BytesIO
 from datetime import datetime
 import numpy as np
 import yaml
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse
 import uvicorn
@@ -251,6 +255,10 @@ except Exception:
 
 from kokoro import KPipeline
 
+
+# ==========================================
+# Load Config
+# ==========================================
 with open("config.yaml", "r") as f:
     CONFIG = yaml.safe_load(f)
 
@@ -260,85 +268,105 @@ SR = CONFIG["sample_rate"]
 app = FastAPI()
 pipeline = None
 
-# -------- NEW: chunking config helpers --------
-CHUNKING_CFG = CONFIG.get("chunking", {})
-CHUNK_ENABLED = CHUNKING_CFG.get("enabled", True)
-WORD_THRESHOLD_DEFAULT = int(CHUNKING_CFG.get("word_threshold", 20))
-
-def chunk_text(text: str, max_words: int | None = None) -> list[str]:
-    """
-    Split long text into smaller chunks for better latency.
-    - First split by sentence.
-    - If still long, break into ~max_words word slices.
-    """
-    if max_words is None:
-        max_words = WORD_THRESHOLD_DEFAULT
-
-    words = text.split()
-    if len(words) <= max_words:
-        return [text]
-
-    import re
-    sentences = re.split(r'(?<=[.!?]) +', text)
-
-    chunks: list[str] = []
-    for s in sentences:
-        s = s.strip()
-        if not s:
-            continue
-        ws = s.split()
-        if len(ws) <= max_words:
-            chunks.append(s)
-        else:
-            for i in range(0, len(ws), max_words):
-                chunks.append(" ".join(ws[i:i + max_words]))
-    return chunks
-# ----------------------------------------------
+# Chunking config
+CHUNK_ENABLED = CONFIG.get("chunking", {}).get("enabled", True)
+WORD_THRESHOLD = int(CONFIG.get("chunking", {}).get("word_threshold", 20))
 
 
+# ==========================================
+# Helper: Convert tensor → numpy
+# ==========================================
 def as_numpy(x):
-    """Convert tensors to numpy arrays."""
     if torch is not None and isinstance(x, torch.Tensor):
-        x = x.detach().cpu().numpy()
-    else:
-        x = np.asarray(x)
-    return x.astype(np.float32).reshape(-1)
+        return x.detach().cpu().numpy().astype(np.float32).reshape(-1)
+    return np.asarray(x, dtype=np.float32).reshape(-1)
 
 
-# -------- NEW: device selection for CUDA --------
+# ==========================================
+# GPU Selection
+# ==========================================
 def get_device() -> str:
     if torch is not None and torch.cuda.is_available():
         return "cuda"
     return "cpu"
-# -----------------------------------------------
 
 
+# ==========================================
+# Intelligent Chunking Logic
+# (Paragraph >20 words OR sentence >20 words)
+# ==========================================
+def chunk_text(text: str, max_words: int = 20) -> list[str]:
+    text = text.strip()
+    if not text:
+        return []
+
+    total_words = len(text.split())
+    if total_words <= max_words:
+        return [text]
+
+    import re
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+
+    chunks = []
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+
+        words = sentence.split()
+        if len(words) <= max_words:
+            chunks.append(sentence)
+            continue
+
+        # Sentence too long → chunk it
+        for i in range(0, len(words), max_words):
+            chunks.append(" ".join(words[i:i + max_words]))
+
+    return chunks
+
+
+# ==========================================
+# Startup: Load Kokoro with CUDA
+# ==========================================
 @app.on_event("startup")
 async def _init():
-    """Initialize Kokoro TTS pipeline."""
     global pipeline
-    device = get_device()  # NEW
-    pipeline = KPipeline(lang_code=CONFIG["lang_code"], device=device)  # UPDATED
-    logging.info(
-        f"✅ Kokoro pipeline initialized (lang={CONFIG['lang_code']}, device={device})"
+    device = get_device()
+    pipeline = KPipeline(
+        lang_code=CONFIG["lang_code"],
+        device=device
     )
+    logging.info(f"🚀 Kokoro TTS initialized (device={device}, lang={CONFIG['lang_code']})")
 
 
+# ==========================================
+# Root
+# ==========================================
 @app.get("/", response_class=PlainTextResponse)
 def root():
     return (
-        "Kokoro TTS WebSocket server.\n"
-        "Connect to /ws with JSON: {\"text\",\"voice\",\"speed\",\"format\"}\n"
-        "format: f32 | s16 | wav | mp3 | ogg | flac\n"
+        "Kokoro TTS WebSocket server\n\n"
+        "Send JSON: {\"text\":\"hi\", \"voice\":\"af_heart\", \"speed\":1.0, \"format\":\"f32\"}\n"
+        "Formats: f32 | s16 | wav | mp3 | ogg | flac\n"
     )
 
 
+# ==========================================
+# WebSocket TTS Endpoint (Improved)
+# ==========================================
 @app.websocket("/ws")
 async def ws(websocket: WebSocket):
     await websocket.accept()
-    logging.info("connection open")
+    logging.info("connection opened")
+
     try:
         while True:
+            # ------------------------------
+            # Your start-time measurement
+            # ------------------------------
+            start = time.time()
+            print(f"----------START TIME: {start}------------")
+
             req = await websocket.receive_text()
             cfg = json.loads(req)
 
@@ -351,18 +379,7 @@ async def ws(websocket: WebSocket):
                 await websocket.send_text(json.dumps({"type": "done", "error": "empty text"}))
                 continue
 
-            # -------- NEW: chunking decision --------
-            word_count = len(text.split())
-            if CHUNK_ENABLED and word_count > WORD_THRESHOLD_DEFAULT:
-                chunks = chunk_text(text)
-                logging.info(
-                    f"Chunking enabled: {word_count} words → {len(chunks)} chunk(s) "
-                    f"(threshold={WORD_THRESHOLD_DEFAULT})"
-                )
-            else:
-                chunks = [text]
-            # ----------------------------------------
-
+            # Meta response
             await websocket.send_text(json.dumps({
                 "type": "meta",
                 "sample_rate": SR,
@@ -370,9 +387,19 @@ async def ws(websocket: WebSocket):
                 "sample_format": fmt
             }))
 
-            start_time = time.time()
-            start_human = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            logging.info(f"[start] {start_human}")
+            # ------------------------------
+            # Chunking decision
+            # ------------------------------
+            if CHUNK_ENABLED:
+                chunks = chunk_text(text, WORD_THRESHOLD)
+            else:
+                chunks = [text]
+
+            # ------------------------------
+            # Pipeline timing
+            # ------------------------------
+            only_pipeline_start = time.time()
+            print(f"----------ONLY PIPELINE START TIME: {only_pipeline_start}------------")
 
             t0 = time.perf_counter()
             ttfa_sent = False
@@ -380,79 +407,84 @@ async def ws(websocket: WebSocket):
             audio_total_s = 0.0
             buf: List[np.ndarray] = []
 
-            # -------- UPDATED: run pipeline per chunk, keep old logic inside --------
-            for chunk_idx, chunk_text_part in enumerate(chunks):
+            # =====================================
+            # Stream each chunk through Kokoro
+            # =====================================
+            for chunk in chunks:
                 gen = pipeline(
-                    chunk_text_part,
+                    chunk,
                     voice=voice,
                     speed=speed,
-                    split_pattern=CONFIG["pipeline"]["split_pattern"],
+                    split_pattern=CONFIG["pipeline"]["split_pattern"]
                 )
 
                 for (_gs, _ps, audio) in gen:
                     now = time.perf_counter()
+
+                    # TTFA (your original logic)
                     if not ttfa_sent:
                         await websocket.send_text(json.dumps(
-                            {"type": "ttfa", "ms": (now - t0) * 1000.0}))
+                            {"type": "ttfa", "ms": (now - t0) * 1000.0}
+                        ))
                         ttfa_sent = True
 
                     a = as_numpy(audio)
                     buf.append(a)
+
                     segments += 1
                     audio_total_s += a.size / SR
 
-                    # streaming path (minimal post-processing)
-                    if fmt in {"f32", "s16"}:
-                        if fmt == "s16":
-                            pcm = (np.clip(a, -1, 1) * 32767.0).astype(np.int16).tobytes()
-                        else:
-                            pcm = a.tobytes()
-                        await websocket.send_bytes(pcm)
-            # ---------------------------------------------------------------
+                    # -----------------------------
+                    # Stream PCM immediately (minimal processing)
+                    # -----------------------------
+                    if fmt == "f32":
+                        await websocket.send_bytes(a.tobytes())
+                    elif fmt == "s16":
+                        pcm16 = (np.clip(a, -1, 1) * 32767.0).astype(np.int16)
+                        await websocket.send_bytes(pcm16.tobytes())
 
+            print(f"---------------ONLY PIPELINE Time taken: {time.time() - only_pipeline_start} seconds-----------")
+
+            # -----------------------------
+            # Summary calculation
+            # -----------------------------
             total_ms = (time.perf_counter() - t0) * 1000.0
             rtf = (total_ms / 1000.0) / max(1e-6, audio_total_s)
 
-            end_time = time.time()
-            end_human = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            total_time_sec = end_time - start_time
-
-            logging.info(f"[end]   {end_human}")
-            logging.info(f"[total] {total_time_sec:.9f} sec")  # full microsecond precision
-
-            # Encoded formats: keep behaviour, but reduce work for WAV
+            # -----------------------------
+            # Encoded formats
+            # -----------------------------
             if fmt in {"wav", "mp3", "ogg", "flac"}:
                 full_audio = np.concatenate(buf) if len(buf) > 1 else buf[0]
+
+                # WAV minimal processing
                 wav_io = BytesIO()
-                sf.write(
-                    wav_io,
-                    np.clip(full_audio, -1, 1),
-                    SR,
-                    format="WAV",
-                    subtype="PCM_16",
-                )
+                sf.write(wav_io, np.clip(full_audio, -1, 1), SR, format="WAV", subtype="PCM_16")
                 wav_io.seek(0)
 
                 if fmt == "wav":
-                    # -------- NEW: avoid extra pydub encode for WAV --------
+                    # No re-encode — directly send WAV bytes
                     await websocket.send_bytes(wav_io.getvalue())
                 else:
+                    # Re-encode only when required
                     audio_seg = AudioSegment.from_wav(wav_io)
                     out_io = BytesIO()
                     audio_seg.export(out_io, format=fmt)
                     await websocket.send_bytes(out_io.getvalue())
 
+            # -----------------------------
+            # DONE message
+            # -----------------------------
             await websocket.send_text(json.dumps({
                 "type": "done",
                 "total_ms": total_ms,
                 "audio_ms": audio_total_s * 1000.0,
                 "segments": segments,
                 "rtf": rtf,
-                "error": None,
-                "start_time": start_time,
-                "end_time": end_time,
-                "total_time_sec": total_time_sec
+                "error": None
             }))
+
+            print(f"---------------Time taken: {time.time() - start} seconds-----------")
 
     except WebSocketDisconnect:
         logging.warning("Client disconnected.")
@@ -460,13 +492,17 @@ async def ws(websocket: WebSocket):
         logging.error(traceback.format_exc())
         try:
             await websocket.send_text(json.dumps({"type": "done", "error": str(e)}))
-        except Exception:
+        except:
             pass
         await websocket.close()
+
     finally:
         logging.info("connection closed")
 
 
+# ==========================================
+# Main Runner
+# ==========================================
 if __name__ == "__main__":
     uvicorn.run(
         "ws_kokoro_server:app",
