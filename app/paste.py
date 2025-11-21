@@ -23,3 +23,12 @@
 docker build -t us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0 .
 docker push us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0
 us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0
+
+
+gcloud run deploy hm-outreach-ws \
+  --image us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0 \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --port 8080
+
