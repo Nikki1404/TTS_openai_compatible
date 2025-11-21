@@ -50,3 +50,30 @@ gcloud run services describe hm-outreach-ws \
   --region us-central1 \
   --format "value(spec.template.spec.serviceAccountName)"
 150916788856-compute@developer.gserviceaccount.com
+
+gcloud projects add-iam-policy-binding emr-dgt-autonomous-uctr1-snbx \
+  --member="serviceAccount:150916788856-compute@developer.gserviceaccount.com" \
+  --role="roles/datastore.user"
+
+gcloud projects add-iam-policy-binding emr-dgt-autonomous-uctr1-snbx \
+  --member="serviceAccount:150916788856-compute@developer.gserviceaccount.com" \
+  --role="roles/datastore.owner"
+
+gcloud run deploy hm-outreach-ws \
+  --image us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0 \
+  --region us-central1 \
+  --platform managed \
+  --allow-unauthenticated \
+  --port 8080
+
+curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
+     -H "Content-Type: application/json" \
+     -d @sample.json
+
+
+
+gcloud projects get-iam-policy emr-dgt-autonomous-uctr1-snbx \
+  --flatten="bindings[].members" \
+  --format='table(bindings.role, bindings.members)' \
+  --filter="150916788856-compute@developer.gserviceaccount.com"
+
