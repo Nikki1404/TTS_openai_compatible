@@ -49,4 +49,4 @@ re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ curl -X POS
 gcloud run services describe hm-outreach-ws \
   --region us-central1 \
   --format "value(spec.template.spec.serviceAccountName)"
-
+150916788856-compute@developer.gserviceaccount.com
