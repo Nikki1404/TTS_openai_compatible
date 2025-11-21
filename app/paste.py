@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from google.cloud import pubsub_v1
+from google.cloud import pubsub_v1, datastore
 from typing import List
 from dbManage import DBManager
 import uvicorn
@@ -133,12 +133,6 @@ async def addTranscript(
     )
 
 
-
-# =====================================================================
-# <<< NEW CODE >>>   FUNCTION TO INSERT INTO hm-conversation-metadata
-# =====================================================================
-from google.cloud import datastore
-
 def insert_hm_conversation_metadata(conversationId, agentData, ccaasData, intervention):
     try:
         client = datastore.Client(project=PROJECT_ID)
@@ -219,11 +213,6 @@ async def publishPubSubMessage(
             content={"error": f"ERROR FOUND AT SAVING TRANSCRIPT: {response}"}
         )
 
-
-
-    # =====================================================================
-    # <<< NEW CODE >>>   EXTRACT HMConversationData AND INSERT INTO TABLE
-    # =====================================================================
     try:
         hm_root = attributes.get("HMConversationData", {})
         meta = hm_root.get("metaData", {})
@@ -251,8 +240,6 @@ async def publishPubSubMessage(
 
     except Exception as e:
         print("Error processing hm-conversation-metadata:", str(e))
-
-
 
     # Optional attributes
     if attributes is None:
@@ -298,6 +285,8 @@ async def index(request: Request):
     print(f"Received message in dictionary format: {message}, {type(message)}!")
 
     await ws_manager.broadcast(message)
+    
+    # return JSONResponse(status_code=204, content={"response": "Message received successfully!"})
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
