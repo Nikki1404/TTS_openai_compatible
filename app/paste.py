@@ -192,10 +192,6 @@ async def publishPubSubMessage(
             content={"error": f"ERROR FOUND AT SAVING TRANSCRIPT: {response}"}
         )
 
-
-    # =====================================================================
-    # NEW CODE — Extract hm-conversation-metadata (per Kunal's instruction)
-    # =====================================================================
     try:
         hm_root = attributes.get("hm-conversation-metadata", {})
 
