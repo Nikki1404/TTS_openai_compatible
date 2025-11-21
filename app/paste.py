@@ -37,3 +37,10 @@ curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
      -H "Content-Type: application/json" \
      -d @sample.json
 
+nbx)$ vim sample.json 
+re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ vi sample.json 
+re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
+     -H "Content-Type: application/json" \
+     -d @sample.json
+{"error":"ERROR FOUND AT SAVING TRANSCRIPT: 403 Missing or insufficient permissions."}re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ 
+
