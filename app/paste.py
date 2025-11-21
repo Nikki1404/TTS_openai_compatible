@@ -133,6 +133,33 @@ async def addTranscript(
     )
 
 
+
+# =====================================================================
+# <<< NEW CODE >>>   FUNCTION TO INSERT INTO hm-conversation-metadata
+# =====================================================================
+from google.cloud import datastore
+
+def insert_hm_conversation_metadata(conversationId, agentData, ccaasData, intervention):
+    try:
+        client = datastore.Client(project=PROJECT_ID)
+        key = client.key("hm-conversation-metadata")
+        entity = datastore.Entity(key=key)
+
+        entity.update({
+            "conversationId": conversationId,
+            "agentData": agentData,
+            "ccaasData": ccaasData,
+            "intervention": intervention
+        })
+
+        client.put(entity)
+        print("Metadata inserted into hm-conversation-metadata")
+
+    except Exception as e:
+        print(f"Error inserting metadata: {str(e)}")
+
+
+
 @app.post(path='/publish')
 async def publishPubSubMessage(
     request: Request,
@@ -191,7 +218,42 @@ async def publishPubSubMessage(
             status_code=500,
             content={"error": f"ERROR FOUND AT SAVING TRANSCRIPT: {response}"}
         )
-    
+
+
+
+    # =====================================================================
+    # <<< NEW CODE >>>   EXTRACT HMConversationData AND INSERT INTO TABLE
+    # =====================================================================
+    try:
+        hm_root = attributes.get("HMConversationData", {})
+        meta = hm_root.get("metaData", {})
+
+        if meta:
+            conversationId_val = attributes.get("conversationId", "")
+            agentData_val = meta.get("AgentData", {})
+            ccaasData_val = meta.get("CKsData", {})
+            intervention_val = meta.get("Intervention", "")
+
+            print("Parsed Metadata:")
+            print(json.dumps({
+                "conversationId": conversationId_val,
+                "agentData": agentData_val,
+                "ccaasData": ccaasData_val,
+                "intervention": intervention_val
+            }, indent=2))
+
+            insert_hm_conversation_metadata(
+                conversationId_val,
+                agentData_val,
+                ccaasData_val,
+                intervention_val
+            )
+
+    except Exception as e:
+        print("Error processing hm-conversation-metadata:", str(e))
+
+
+
     # Optional attributes
     if attributes is None:
         attributes = {}
@@ -237,8 +299,6 @@ async def index(request: Request):
 
     await ws_manager.broadcast(message)
 
-    # return JSONResponse(status_code=204, content={"response": "Message received successfully!"})
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
@@ -254,13 +314,3 @@ async def websocket_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
-
-provided you access to the code
- 
-https://ucgithub.exlservice.com/Kunal259787/hm_outreach/blob/main/main.py
- 
-line 188
- 
-{....., conversationid:cidv, "hm-conversation-metadata": {agentData: v1, ccaasData:v2, intervention:v3}}
- 
