@@ -43,4 +43,10 @@ re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ curl -X POS
      -H "Content-Type: application/json" \
      -d @sample.json
 {"error":"ERROR FOUND AT SAVING TRANSCRIPT: 403 Missing or insufficient permissions."}re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ 
+""
+
+
+gcloud run services describe hm-outreach-ws \
+  --region us-central1 \
+  --format "value(spec.template.spec.serviceAccountName)"
 
