@@ -254,3 +254,13 @@ async def websocket_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+provided you access to the code
+ 
+https://ucgithub.exlservice.com/Kunal259787/hm_outreach/blob/main/main.py
+ 
+line 188
+ 
+{....., conversationid:cidv, "hm-conversation-metadata": {agentData: v1, ccaasData:v2, intervention:v3}}
+ 
