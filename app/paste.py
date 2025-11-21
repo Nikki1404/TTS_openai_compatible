@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from google.cloud import pubsub_v1, datastore
+from google.cloud import pubsub_v1
 from typing import List
 from dbManage import DBManager
 import uvicorn
@@ -133,27 +133,6 @@ async def addTranscript(
     )
 
 
-def insert_hm_conversation_metadata(conversationId, agentData, ccaasData, intervention):
-    try:
-        client = datastore.Client(project=PROJECT_ID)
-        key = client.key("hm-conversation-metadata")
-        entity = datastore.Entity(key=key)
-
-        entity.update({
-            "conversationId": conversationId,
-            "agentData": agentData,
-            "ccaasData": ccaasData,
-            "intervention": intervention
-        })
-
-        client.put(entity)
-        print("Metadata inserted into hm-conversation-metadata")
-
-    except Exception as e:
-        print(f"Error inserting metadata: {str(e)}")
-
-
-
 @app.post(path='/publish')
 async def publishPubSubMessage(
     request: Request,
@@ -213,15 +192,18 @@ async def publishPubSubMessage(
             content={"error": f"ERROR FOUND AT SAVING TRANSCRIPT: {response}"}
         )
 
-    try:
-        hm_root = attributes.get("HMConversationData", {})
-        meta = hm_root.get("metaData", {})
 
-        if meta:
+    # =====================================================================
+    # NEW CODE — Extract hm-conversation-metadata (per Kunal's instruction)
+    # =====================================================================
+    try:
+        hm_root = attributes.get("hm-conversation-metadata", {})
+
+        if hm_root:
             conversationId_val = attributes.get("conversationId", "")
-            agentData_val = meta.get("AgentData", {})
-            ccaasData_val = meta.get("CKsData", {})
-            intervention_val = meta.get("Intervention", "")
+            agentData_val = hm_root.get("agentData", {})
+            ccaasData_val = hm_root.get("ccaasData", {})
+            intervention_val = hm_root.get("intervention", "")
 
             print("Parsed Metadata:")
             print(json.dumps({
@@ -231,7 +213,7 @@ async def publishPubSubMessage(
                 "intervention": intervention_val
             }, indent=2))
 
-            insert_hm_conversation_metadata(
+            db_manager.addHMConversationMetadata(
                 conversationId_val,
                 agentData_val,
                 ccaasData_val,
@@ -240,6 +222,7 @@ async def publishPubSubMessage(
 
     except Exception as e:
         print("Error processing hm-conversation-metadata:", str(e))
+
 
     # Optional attributes
     if attributes is None:
@@ -262,7 +245,6 @@ async def publishPubSubMessage(
 
 @app.post(path="/", status_code=204)
 async def index(request: Request):
-    """Receive and parse Pub/Sub messages."""
     print("request: ", request)
     envelope = await request.json()
     print("envelope: ", envelope)
@@ -285,96 +267,19 @@ async def index(request: Request):
     print(f"Received message in dictionary format: {message}, {type(message)}!")
 
     await ws_manager.broadcast(message)
-    
-    # return JSONResponse(status_code=204, content={"response": "Message received successfully!"})
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
-        # await manager.broadcast(f"Client #{client_id} joined the chat")
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
         print("Websocker is disconnected and stopped listening pub-sub messages.")
-        # await manager.broadcast("Connection Ended!")
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
-{
-  "message": {
-    "conversationId": "CID-12345",
-    "speaker": "agent",
-    "transcript": "Hello, this is a test transcript.",
-    "agentType": "BOT",
-
-    "HMConversationData": {
-      "metaData": {
-        "AgentData": {
-          "agentName": "John Doe",
-          "agentScore": 92,
-          "callSummary": "customer asked about refund"
-        },
-        "CKsData": {
-          "ck1": true,
-          "ck2": "completed-id-check"
-        },
-        "Intervention": "Escalation needed"
-      }
-    }
-  }
-}
-
-from google.cloud import datastore
-from datetime import datetime
-
-class DBManager():
-    def __init__(self,
-                 PROJECT_ID: str,
-                 DATABASE_ID: str
-                 ):
-        self.client = datastore.Client(project=PROJECT_ID, database=DATABASE_ID)
-
-    def addTranscript(
-            self,
-            data: dict,
-            kind = "Transcript"
-    ):
-        try:
-            key = self.client.key(kind)
-            entity = datastore.Entity(key=key)
-            entity.update(data)
-        
-            # Save entity to Datastore
-            self.client.put(entity)
-            return 200, "success"
-        except Exception as e:
-            print("Error in adding transcript: ", e)
-            return 500, str(e)
-
-    def __parse_timestamp(self, entry):
-        return datetime.strptime(entry["timestamp"], "%d/%b/%Y:%H:%M:%S %z")
-
-    def getTranscript(
-            self,
-            conversationId: str,
-            kind = "Transcript"
-    ):        
-
-        try:
-            query = self.client.query(kind=kind)
-            query.add_filter('conversationId', '=', conversationId)
-            entities = list(query.fetch())
-            entities = [dict(x) for x in entities]
-            print("entities: ", entities)
-
-            entities = sorted(entities, key=self.__parse_timestamp)
-            return 200, entities
-        
-        except Exception as e:
-            print("Error in fetching transcript: ", e)
-            return 500, str(e)
-
