@@ -304,14 +304,28 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
 
-FROM python:3.9-slim
+{
+  "message": {
+    "conversationId": "CID-12345",
+    "speaker": "agent",
+    "transcript": "Hello, this is a test transcript.",
+    "agentType": "BOT",
 
-WORKDIR /app
+    "HMConversationData": {
+      "metaData": {
+        "AgentData": {
+          "agentName": "John Doe",
+          "agentScore": 92,
+          "callSummary": "customer asked about refund"
+        },
+        "CKsData": {
+          "ck1": true,
+          "ck2": "completed-id-check"
+        },
+        "Intervention": "Escalation needed"
+      }
+    }
+  }
+}
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
 
