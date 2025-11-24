@@ -287,51 +287,58 @@ def maybe_save(audio: np.ndarray, sr: int, basename: str, enable: bool):
     sf.write(out, audio, sr, "PCM_16")
     return out
 
-Traceback (most recent call last):
-  File "/usr/local/bin/uvicorn", line 8, in <module>
-    sys.exit(main())
-  File "/usr/local/lib/python3.10/dist-packages/click/core.py", line 1485, in __call__
-    return self.main(*args, **kwargs)
-  File "/usr/local/lib/python3.10/dist-packages/click/core.py", line 1406, in main
-    rv = self.invoke(ctx)
-  File "/usr/local/lib/python3.10/dist-packages/click/core.py", line 1269, in invoke
-    return ctx.invoke(self.callback, **ctx.params)
-  File "/usr/local/lib/python3.10/dist-packages/click/core.py", line 824, in invoke
-    return callback(*args, **kwargs)
-  File "/usr/local/lib/python3.10/dist-packages/uvicorn/main.py", line 423, in main
-    run(
-  File "/usr/local/lib/python3.10/dist-packages/uvicorn/main.py", line 593, in run
-    server.run()
-  File "/usr/local/lib/python3.10/dist-packages/uvicorn/server.py", line 67, in run
-    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
-  File "/usr/local/lib/python3.10/dist-packages/uvicorn/_compat.py", line 60, in asyncio_run
-    return loop.run_until_complete(main)
-  File "/usr/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
-    return future.result()
-  File "/usr/local/lib/python3.10/dist-packages/uvicorn/server.py", line 71, in serve
-    await self._serve(sockets)
-  File "/usr/local/lib/python3.10/dist-packages/uvicorn/server.py", line 78, in _serve
-    config.load()
-  File "/usr/local/lib/python3.10/dist-packages/uvicorn/config.py", line 439, in load
-    self.loaded_app = import_from_string(self.app)
-  File "/usr/local/lib/python3.10/dist-packages/uvicorn/importer.py", line 19, in import_from_string
-    module = importlib.import_module(module_str)
-  File "/usr/lib/python3.10/importlib/__init__.py", line 126, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
-  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
-  File "/app/app/main.py", line 4, in <module>
-    from app.routers.openai_compatible import router as openai_router
-  File "/app/app/routers/openai_compatible.py", line 8, in <module>
-    from app.tts.kokoro_engine import synthesize_np, encode_audio, maybe_save
-  File "/app/app/tts/kokoro_engine.py", line 12, in <module>
-    from kokoro_tts import KPipeline
-  File "/usr/local/lib/python3.10/dist-packages/kokoro_tts/__init__.py", line 20, in <module>
-    import sounddevice as sd
-  File "/usr/local/lib/python3.10/dist-packages/sounddevice.py", line 71, in <module>
-    raise OSError('PortAudio library not found')
-OSError: PortAudio library not found"
+#9 143.3   Using cached language_tags-1.2.0-py3-none-any.whl (213 kB)
+#9 143.4 Collecting rfc3986<2
+#9 143.4   Using cached rfc3986-1.5.0-py2.py3-none-any.whl (31 kB)
+#9 143.5 Collecting python-dateutil
+#9 143.5   Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+#9 143.6 Collecting jsonschema
+#9 143.6   Using cached jsonschema-4.25.1-py3-none-any.whl (90 kB)
+#9 143.7 Collecting termcolor
+#9 143.7   Using cached termcolor-3.2.0-py3-none-any.whl (7.7 kB)
+#9 143.7 Collecting isodate
+#9 143.8   Using cached isodate-0.7.2-py3-none-any.whl (22 kB)
+#9 144.4 Collecting wrapt
+#9 144.4   Using cached wrapt-2.0.1-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (113 kB)
+#9 144.6 Collecting jsonschema-specifications>=2023.03.6
+#9 144.6   Using cached jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+#9 144.7 Collecting referencing>=0.28.4
+#9 144.8   Using cached referencing-0.37.0-py3-none-any.whl (26 kB)
+#9 145.9 Collecting rpds-py>=0.7.1
+#9 146.0   Using cached rpds_py-0.29.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (392 kB)
+#9 146.1 Collecting six>=1.5
+#9 146.1   Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+#9 146.3 Collecting pyparsing<4,>=2.1.0
+#9 146.3   Using cached pyparsing-3.2.5-py3-none-any.whl (113 kB)
+#9 146.5 ERROR: Exception:
+#9 146.5 Traceback (most recent call last):
+#9 146.5   File "/usr/lib/python3/dist-packages/pip/_internal/cli/base_command.py", line 165, in exc_logging_wrapper
+#9 146.5     status = run_func(*args)
+#9 146.5   File "/usr/lib/python3/dist-packages/pip/_internal/cli/req_command.py", line 205, in wrapper
+#9 146.5     return func(self, options, args)
+#9 146.5   File "/usr/lib/python3/dist-packages/pip/_internal/commands/install.py", line 389, in run
+#9 146.5     to_install = resolver.get_installation_order(requirement_set)
+#9 146.5   File "/usr/lib/python3/dist-packages/pip/_internal/resolution/resolvelib/resolver.py", line 188, in get_installation_order
+#9 146.5     weights = get_topological_weights(
+#9 146.5   File "/usr/lib/python3/dist-packages/pip/_internal/resolution/resolvelib/resolver.py", line 276, in get_topological_weights
+#9 146.5     assert len(weights) == expected_node_count
+#9 146.5 AssertionError
+#9 ERROR: process "/bin/sh -c pip install -r /app/requirements.txt" did not complete successfully: exit code: 2
+------
+ > [stage-0 5/6] RUN --mount=type=cache,target=/root/.cache/pip pip install -r /app/requirements.txt:
+146.5     status = run_func(*args)
+146.5   File "/usr/lib/python3/dist-packages/pip/_internal/cli/req_command.py", line 205, in wrapper
+146.5     return func(self, options, args)
+146.5   File "/usr/lib/python3/dist-packages/pip/_internal/commands/install.py", line 389, in run
+146.5     to_install = resolver.get_installation_order(requirement_set)
+146.5   File "/usr/lib/python3/dist-packages/pip/_internal/resolution/resolvelib/resolver.py", line 188, in get_installation_order
+146.5     weights = get_topological_weights(
+146.5   File "/usr/lib/python3/dist-packages/pip/_internal/resolution/resolvelib/resolver.py", line 276, in get_topological_weights
+146.5     assert len(weights) == expected_node_count
+146.5 AssertionError
+------
+Dockerfile:19
+--------------------
+  17 |     COPY . /app/
+  18 |     
+  19 | >>> RUN --mount=type=cache,target=/root/.cache/pip pip install -r /app/requirements.txt
