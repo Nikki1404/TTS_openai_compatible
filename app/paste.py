@@ -139,3 +139,82 @@ gcloud run deploy kokoro-gpu \
   --min-instances=1 \
   --no-cpu-throttling \
   --allow-unauthenticated
+
+
+cloud run logs - 3 error -
+
+File "/usr/local/bin/uvicorn", line 8, in <module>
+    sys.exit(main())
+  File "/usr/local/lib/python3.10/dist-packages/click/core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+  File "/usr/local/lib/python3.10/dist-packages/click/core.py", line 1406, in main
+    rv = self.invoke(ctx)
+  File "/usr/local/lib/python3.10/dist-packages/click/core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/usr/local/lib/python3.10/dist-packages/click/core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/main.py", line 423, in main
+    run(
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/main.py", line 593, in run
+    server.run()
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/server.py", line 67, in run
+    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/_compat.py", line 60, in asyncio_run
+    return loop.run_until_complete(main)
+  File "/usr/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/server.py", line 71, in serve
+    await self._serve(sockets)
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/server.py", line 78, in _serve
+    config.load()
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/config.py", line 439, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/importer.py", line 22, in import_from_string
+    raise exc from None
+  File "/usr/local/lib/python3.10/dist-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/usr/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/app/main.py", line 4, in <module>
+    from app.routers.openai_compatible import router as openai_router
+  File "/app/app/routers/openai_compatible.py", line 8, in <module>
+    from app.tts.kokoro_engine import synthesize_np, encode_audio, maybe_save
+  File "/app/app/tts/kokoro_engine.py", line 9, in <module>
+    from kokoro import KPipeline
+ModuleNotFoundError: No module named 'kokoro'"
+
+error - 2 {
+insertId: "69244fe1000989aeb70ae4db"
+labels: {
+instanceId: "0014778296ad8bf510907737fa972922768aa1e4effd9657a7a08dc385d0de4ef9cc35be9225f9b5634b82c8b548eb3b32ad1d81912ce211c92a2ae17d15e577b18b3d91357dc521a86ece46efab597af232de0295f7861a5eec"
+}
+logName: "projects/emr-dgt-autonomous-uctr1-snbx/logs/run.googleapis.com%2Fvarlog%2Fsystem"
+receiveTimestamp: "2025-11-24T12:30:25.628658773Z"
+resource: {
+labels: {
+configuration_name: "kokoro-gpu"
+location: "us-central1"
+project_id: "emr-dgt-autonomous-uctr1-snbx"
+revision_name: "kokoro-gpu-00002-rxh"
+service_name: "kokoro-gpu"
+}
+type: "cloud_run_revision"
+}
+severity: "ERROR"
+textPayload: "Default STARTUP TCP probe failed 1 time consecutively for container "kokoro-1" on port 8080. The instance was not started.
+Connection failed with status CANCELLED."
+timestamp: "2025-11-24T12:30:25.625070Z"
+}
+
+error - 3
+
+Ready condition status changed to False for Revision kokoro-gpu-00002-rxh with message: The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.
+
+Logs URL: https://console.cloud.google.com/logs/viewer?project=emr-dgt-autonomous-uctr1-snbx&resource=cloud_run_revision/service_name/kokoro-gpu/revision_name/kokoro-gpu-00002-rxh&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22kokoro-gpu%22%0Aresource.labels.revision_name%3D%22kokoro-gpu-00002-rxh%22 
+For more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start
