@@ -1,112 +1,30 @@
-{
-  "message": {
-    "conversationId": "CID-TEST-001",
-    "speaker": "agent",
-    "transcript": "Hi, this is a test message from sample.json.",
-    "agentType": "BOT",
+FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
 
-    "hm-conversation-metadata": {
-      "agentData": {
-        "agentName": "John Doe",
-        "experienceYears": 4,
-        "qualityScore": 92
-      },
-      "ccaasData": {
-        "check1": true,
-        "check2": "verified"
-      },
-      "intervention": "No escalation needed"
-    }
-  }
-}
+WORKDIR /app
 
-docker build -t us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0 .
-docker push us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0
-us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0
+# Step 1: Install system dependencies + Python
+RUN apt-get update && apt-get install -y \
+    git ffmpeg python3 python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Step 2: Environment variables (AFTER Python exists)
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    KOKORO_LANG=a \
+    KOKORO_DEFAULT_VOICE=af_heart \
+    KOKORO_PRELOAD_VOICES="af_heart af_bella af_sky"
 
 
-gcloud run deploy hm-outreach-ws \
-  --image us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0 \
-  --region us-central1 \
-  --platform managed \
-  --allow-unauthenticated \
-  --port 8080
+COPY . /app/
 
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r /app/requirements.txt
 
-curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
-     -H "Content-Type: application/json" \
-     -d @sample.json
-
-nbx)$ vim sample.json 
-re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ vi sample.json 
-re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
-     -H "Content-Type: application/json" \
-     -d @sample.json
-{"error":"ERROR FOUND AT SAVING TRANSCRIPT: 403 Missing or insufficient permissions."}re_nikitav@cloudshell:~/hm_outreach (emr-dgt-autonomous-uctr1-snbx)$ 
-""
-
-
-gcloud run services describe hm-outreach-ws \
-  --region us-central1 \
-  --format "value(spec.template.spec.serviceAccountName)"
-150916788856-compute@developer.gserviceaccount.com
-
-gcloud projects add-iam-policy-binding emr-dgt-autonomous-uctr1-snbx \
-  --member="serviceAccount:150916788856-compute@developer.gserviceaccount.com" \
-  --role="roles/datastore.user"
-
-gcloud projects add-iam-policy-binding emr-dgt-autonomous-uctr1-snbx \
-  --member="serviceAccount:150916788856-compute@developer.gserviceaccount.com" \
-  --role="roles/datastore.owner"
-
-gcloud run deploy hm-outreach-ws \
-  --image us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0 \
-  --region us-central1 \
-  --platform managed \
-  --allow-unauthenticated \
-  --port 8080
-
-curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
-     -H "Content-Type: application/json" \
-     -d @sample.json
+# Step 4: Install ONNX GPU runtime
+RUN pip install onnxruntime-gpu
 
 
 
-gcloud projects get-iam-policy emr-dgt-autonomous-uctr1-snbx \
-  --flatten="bindings[].members" \
-  --format='table(bindings.role, bindings.members)' \
-  --filter="150916788856-compute@developer.gserviceaccount.com"
+EXPOSE 8080
 
-gcloud projects add-iam-policy-binding --condition=None
-
-gcloud projects add-iam-policy-binding emr-dgt-autonomous-uctr1-snbx \
-  --member="serviceAccount:150916788856-compute@developer.gserviceaccount.com" \
-  --role="roles/datastore.user" \
-  --condition=None
-
-
-gcloud projects add-iam-policy-binding emr-dgt-autonomous-uctr1-snbx \
-  --member="serviceAccount:150916788856-compute@developer.gserviceaccount.com" \
-  --role="roles/datastore.owner" \
-  --condition=None
-
-
-gcloud projects add-iam-policy-binding emr-dgt-autonomous-uctr1-snbx \
-    --member="serviceAccount:150916788856-compute@developer.gserviceaccount.com" \
-    --role="roles/datastore.user" \
-    --condition=None
-
-gcloud run deploy hm-outreach-ws \
-  --image us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-poc/pubsub-via-ws:4.0.0 \
-  --region us-central1 \
-  --platform managed \
-  --allow-unauthenticated \
-  --port 8080
-
-
-curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
-     -H "Content-Type: application/json" \
-     -d @sample.json
-
-
-
+# Step 6: Run the app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
