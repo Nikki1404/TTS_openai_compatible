@@ -22,6 +22,14 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r /app/requirements.
 # Step 4: Install ONNX GPU runtime
 RUN pip install onnxruntime-gpu
 
+@app.get("/debug/gpu")
+def gpu_debug():
+    try:
+        import onnxruntime as ort
+        return {"providers": ort.get_available_providers()}
+    except Exception as e:
+        return {"error": str(e)}
+        
 
 
 EXPOSE 8080
