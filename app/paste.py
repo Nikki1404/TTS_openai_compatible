@@ -126,21 +126,16 @@ re_nikitav@cloudshell:~/fastapi_impl_gpu (emr-dgt-autonomous-uctr1-snbx)$
 
 
 gcloud logs read --project=emr-dgt-autonomous-uctr1-snbx --region=us-central1 --service=kokoro-gpu --limit=200
-re_nikitav@cloudshell:~/fastapi_impl_gpu (emr-dgt-autonomous-uctr1-snbx)$ ls -R
-.:
-app  Dockerfile  README.md  requirements.txt  sample_test_client
-
-./app:
-core  __init__.py  main.py  routers  tts
-
-./app/core:
-config.py  __init__.py  mappings.py
-
-./app/routers:
-__init__.py  openai_compatible.py
-
-./app/tts:
-__init__.py  kokoro_engine.py
-
-./sample_test_client:
-option_1_test_openai.py  option_2_client.py  request.json  requirements.txt
+gcloud run deploy kokoro-gpu \
+  --image=us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro:latest \
+  --platform=managed \
+  --region=us-central1 \
+  --gpu-type=nvidia-l4 \
+  --gpu=1 \
+  --cpu=6 \
+  --memory=24Gi \
+  --timeout=3600 \
+  --max-instances=1 \
+  --min-instances=1 \
+  --no-cpu-throttling \
+  --allow-unauthenticated
