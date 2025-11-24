@@ -80,10 +80,9 @@ gcloud run deploy kokoro-gpu \
   --image=us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro:latest \
   --region=us-central1 \
   --platform=managed \
-  --memory=4Gi \
-  --cpu=2 \
-  --gpu=1 \
-  --gpu-type=nvidia-l4 \
+  --gpu=kind=nvidia-l4,device=0 \
+  --cpu=4 \
+  --memory=16Gi \
+  --timeout=3600 \
+  --max-instances=1 \
   --allow-unauthenticated
-
-
