@@ -288,20 +288,25 @@ def maybe_save(audio: np.ndarray, sr: int, basename: str, enable: bool):
     return out
 
 
-curl --location 'https://hm-outreach-cx-socket-streaming-150916788856.us-central1.run.app/publish' \
---header 'Content-Type: application/json' \
---data '{
+curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
+  -H "Content-Type: application/json" \
+  -d '{
     "message": {
         "conversationId": "200412",
         "speaker": "user",
         "agentType": "dfcx",
         "transcript": "Hey",
-        "HMConversationData":{
-            "metaData":{
-                "AgentData": {"qualityScore":"1","experienceYears":"1","agentName":"max weber"},
-                "CKsData": {"check1":true,"check2":"verified"},
-                "Intervention": "No escalation needed"
-            }
+        "hm-conversation-metadata": {
+            "agentData": {
+                "qualityScore": "1",
+                "experienceYears": "1",
+                "agentName": "max weber"
+            },
+            "ccaasData": {
+                "check1": true,
+                "check2": "verified"
+            },
+            "intervention": "No escalation needed"
         }
     }
-}'
+  }'
