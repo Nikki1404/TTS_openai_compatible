@@ -76,7 +76,7 @@ gcloud services enable cloudbuild.googleapis.com
 
 gcloud services list --enabled | grep run
 
-gcloud run deploy kokoro-gpu \
+re_nikitav@cloudshell:~/fastapi_impl_gpu (emr-dgt-autonomous-uctr1-snbx)$ gcloud run deploy kokoro-gpu \
   --image=us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro:latest \
   --platform=managed \
   --region=us-central1 \
@@ -87,4 +87,39 @@ gcloud run deploy kokoro-gpu \
   --timeout=3600 \
   --max-instances=1 \
   --allow-unauthenticated
+Deploying container to Cloud Run service [kokoro-gpu] in project [emr-dgt-autonomous-uctr1-snbx] region [us-central1]
+Deploying new service...failed                                                         --region=us-central1 \
+  --gpu-type=nvidia-l4 \
+  --gpu=1 \
+  --cpu=4 \
+  --memory=16Gi \
+  --timeout=3600 \
+  --max-instances=1 \
+  --allow-unauthenticated
+Deploying container to Cloud Run service [kokoro-gpu] in project [emr-dgt-autonomous-uctr1-snbx] region [us-central1]
+Deploying new service...failed                                                                                                                              
+Deployment failed                                                                                                                                           
+spec.template.metadata.annotations[autoscaling.knative.dev/maxScale]: You do not have quota for using GPUs with zonal redundancy. Learn more about GPU zonal 
+redundancy: g.co/cloudrun/gpu-redundancy-help
 
+To request quota: g.co/cloudrun/gpu-quota
+
+Would you like to deploy with no zonal redundancy instead? (Y/n)?  Y
+
+Deploying new service...                                                                                                                                    
+  Setting IAM Policy...done                                                                                                                                 
+  Creating Revision...\                                                              redundancy: g.co/cloudrun/gpu-redundancy-help
+
+To request quota: g.co/cloudrun/gpu-quota
+
+Would you like to deploy with no zonal redundancy instead? (Y/n)?  Y
+
+Deploying new service...                                                                                                                                    
+  Setting IAM Policy...done                                                                                                                                 
+  Creating Revision...\                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  Creating Revision...failed                                                                                                                                
+Deployment failed                                                                                                                                           
+ERROR: (gcloud.run.deploy) The user-provided container failed to start and listen on the port defined provided by the PORT=8080 environment variable within the allocated timeout. This can happen when the container port is misconfigured or if the timeout is too short. The health check timeout can be extended. Logs for this revision might contain more information.
+
+Logs URL: https://console.cloud.google.com/logs/viewer?project=emr-dgt-autonomous-uctr1-snbx&resource=cloud_run_revision/service_name/kokoro-gpu/revision_name/kokoro-gpu-00001-lzt&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22kokoro-gpu%22%0Aresource.labels.revision_name%3D%22kokoro-gpu-00001-lzt%22 
+For more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start
+re_nikitav@cloudshell:~/fastapi_impl_gpu (emr-dgt-autonomous-uctr1-snbx)$ 
