@@ -1,5 +1,18 @@
 FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
 
+RUN apt-get update && apt-get install -y \
+    python3 python3-pip python3-dev \
+    git ffmpeg libsndfile1 espeak-ng \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN pip install --no-cache-dir onnxruntime-gpu==1.19.0
+
+COPY app /app/app
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     KOKORO_LANG=a \
@@ -7,23 +20,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     KOKORO_PRELOAD_VOICES="af_heart af_bella af_sky" \
     DEBIAN_FRONTEND=noninteractive
 
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y \
-    git ffmpeg python3 python3-pip libsndfile1 espeak-ng \
-    && rm -rf /var/lib/apt/lists/*
-
-
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
-
-RUN pip install --no-cache-dir onnxruntime-gpu==1.19.0
-
-COPY app /app/app
-
 EXPOSE 8080
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
 
 
 gcloud auth configure-docker us-central1-docker.pkg.dev
