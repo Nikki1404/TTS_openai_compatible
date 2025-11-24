@@ -66,3 +66,24 @@ gcloud run deploy kokoro-gpu \
   --no-cpu-throttling \
   --min-instances=1 \
   --allow-unauthenticated
+
+
+gcloud config set project emr-dgt-autonomous-uctr1-snbx
+
+gcloud services enable run.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+
+gcloud services list --enabled | grep run
+
+gcloud run deploy kokoro-gpu \
+  --image=us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro:latest \
+  --region=us-central1 \
+  --platform=managed \
+  --memory=4Gi \
+  --cpu=2 \
+  --gpu=1 \
+  --gpu-type=nvidia-l4 \
+  --allow-unauthenticated
+
+
