@@ -1,27 +1,25 @@
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-ENV https_proxy="http://163.116.128.80:8080"
-ENV http_proxy="http://163.116.128.80:8080"
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y \
-    git ffmpeg python3 python3-pip && \
-    rm -rf /var/lib/apt/lists/*
+FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     KOKORO_LANG=a \
     KOKORO_DEFAULT_VOICE=af_heart \
-    KOKORO_PRELOAD_VOICES="af_heart af_bella af_sky"
+    KOKORO_PRELOAD_VOICES="af_heart af_bella af_sky" \
+    DEBIAN_FRONTEND=noninteractive
 
-COPY . /app/
+WORKDIR /app
 
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r /app/requirements.txt
+RUN apt-get update && apt-get install -y \
+    git ffmpeg python3 python3-pip libsndfile1 espeak-ng \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip install onnxruntime-gpu
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+RUN pip install --no-cache-dir onnxruntime-gpu==1.19.0
+
+COPY app /app/app
 
 EXPOSE 8080
 
