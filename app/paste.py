@@ -47,6 +47,10 @@ gcloud run deploy kokoro-gpu \
   --no-cpu-throttling \
   --allow-unauthenticated
 
+gcloud builds submit --tag \
+us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro:latest .
+
+
 
 https://console.cloud.google.com/artifacts/docker/emr-dgt-autonomous-uctr1-snbx/us-central1/cx-speech?project=emr-dgt-autonomous-uctr1-snbx
 
