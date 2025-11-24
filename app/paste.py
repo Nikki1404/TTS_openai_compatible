@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y \
     git ffmpeg libsndfile1 espeak-ng \
     && rm -rf /var/lib/apt/lists/*
 
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
 WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
@@ -23,6 +25,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 EXPOSE 8080
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
 
 
 
