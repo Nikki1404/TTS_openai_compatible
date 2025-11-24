@@ -22,17 +22,28 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r /app/requirements.
 # Step 4: Install ONNX GPU runtime
 RUN pip install onnxruntime-gpu
 
-@app.get("/debug/gpu")
-def gpu_debug():
-    try:
-        import onnxruntime as ort
-        return {"providers": ort.get_available_providers()}
-    except Exception as e:
-        return {"error": str(e)}
-        
 
 
 EXPOSE 8080
 
 # Step 6: Run the app
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+
+gcloud auth configure-docker us-central1-docker.pkg.dev
+docker build -t kokoro-gpu .
+us-central1-docker.pkg.dev/emr-dgt-autonomous-uc1r1-snbx/cx-speech/kokoro:latest
+docker tag kokoro-gpu \
+us-central1-docker.pkg.dev/emr-dgt-autonomous-uc1r1-snbx/cx-speech/kokoro:latest
+docker push us-central1-docker.pkg.dev/emr-dgt-autonomous-uc1r1-snbx/cx-speech/kokoro:latest
+gcloud run deploy kokoro-gpu \
+  --image=us-central1-docker.pkg.dev/emr-dgt-autonomous-uc1r1-snbx/cx-speech/kokoro:latest \
+  --platform=managed \
+  --region=us-central1 \
+  --gpu=1 \
+  --gpu-type=nvidia-l4 \
+  --memory=8Gi \
+  --timeout=600 \
+  --no-cpu-throttling \
+  --allow-unauthenticated
+
