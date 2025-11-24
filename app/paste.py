@@ -123,3 +123,7 @@ ERROR: (gcloud.run.deploy) The user-provided container failed to start and liste
 Logs URL: https://console.cloud.google.com/logs/viewer?project=emr-dgt-autonomous-uctr1-snbx&resource=cloud_run_revision/service_name/kokoro-gpu/revision_name/kokoro-gpu-00001-lzt&advancedFilter=resource.type%3D%22cloud_run_revision%22%0Aresource.labels.service_name%3D%22kokoro-gpu%22%0Aresource.labels.revision_name%3D%22kokoro-gpu-00001-lzt%22 
 For more troubleshooting guidance, see https://cloud.google.com/run/docs/troubleshooting#container-failed-to-start
 re_nikitav@cloudshell:~/fastapi_impl_gpu (emr-dgt-autonomous-uctr1-snbx)$ 
+
+
+gcloud logs read --project=emr-dgt-autonomous-uctr1-snbx --region=us-central1 --service=kokoro-gpu --limit=200
+
