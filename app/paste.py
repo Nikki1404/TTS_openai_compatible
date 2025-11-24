@@ -346,20 +346,17 @@ Dockerfile:19
 
 FROM nvidia/cuda:12.2.2-runtime-ubuntu22.04
 
-# Install Python + system deps
 RUN apt-get update && apt-get install -y \
     python3 python3-pip python3-dev \
     git ffmpeg libsndfile1 espeak-ng \
     && rm -rf /var/lib/apt/lists/*
 
-# FIX: Upgrade pip properly (CRITICAL)
 RUN python3 -m pip install --upgrade pip setuptools wheel
 
 WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
 
-# Use pip cache for faster installs
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r /app/requirements.txt
 
@@ -373,7 +370,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     CUDA_MODULE_LOADING=LAZY \
     LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
-EXPOSE 8080
+EXPOSE 8081
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8081"]
 
+us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro 
