@@ -47,3 +47,6 @@ gcloud run deploy kokoro-gpu \
   --no-cpu-throttling \
   --allow-unauthenticated
 
+
+https://console.cloud.google.com/artifacts/docker/emr-dgt-autonomous-uctr1-snbx/us-central1/cx-speech?project=emr-dgt-autonomous-uctr1-snbx
+
