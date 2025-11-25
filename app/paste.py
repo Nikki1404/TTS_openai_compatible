@@ -422,3 +422,66 @@ curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
     }
   }'
 
+
+import os
+from docx import Document   # pip install python-docx
+
+
+def read_text_file(file_path):
+    """Reads plain text files line by line."""
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    yield line, file_path
+    except Exception as e:
+        print(f"[ERROR] Cannot read {file_path}: {e}")
+
+
+def read_docx_file(file_path):
+    """Reads .docx files line by line."""
+    try:
+        doc = Document(file_path)
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            if text:
+                yield text, file_path
+    except Exception as e:
+        print(f"[ERROR] Cannot read {file_path}: {e}")
+
+
+def read_all_files_recursively(root_folder):
+    """Recursively goes through all subfolders and reads files line by line."""
+    for root, dirs, files in os.walk(root_folder):
+        for file in files:
+            file_path = os.path.join(root, file)
+            ext = file.lower().split(".")[-1]
+
+            if ext in ["txt", "log", "md", "json", "py"]:
+                for line, fp in read_text_file(file_path):
+                    yield line, fp
+
+            elif ext == "docx":
+                for line, fp in read_docx_file(file_path):
+                    yield line, fp
+
+            # Ignore other file types automatically
+            else:
+                continue
+
+
+if __name__ == "__main__":
+    # Get folder path from terminal
+    folder_path = input("Enter folder path: ").strip()
+
+    if not os.path.isdir(folder_path):
+        print("\n❌ ERROR: Invalid directory\n")
+        exit(1)
+
+    print(f"\n📂 Reading all files from: {folder_path}\n")
+
+    # Process all files
+    for line, file_path in read_all_files_recursively(folder_path):
+        print(f"[{file_path}]  {line}")
+
