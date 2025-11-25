@@ -400,3 +400,25 @@ curl --location --request POST "https://hm-outreach-ws-150916788856.us-central1.
     }
   }'
 
+curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": {
+      "conversationId": "CID-TEST-001",
+      "speaker": "agent",
+      "transcript": "This is a test entry for hm-conversation-metadata.",
+      "agentType": "BOT",
+      "hm-conversation-metadata": {
+        "agentData": {
+          "agentName": "Nikita",
+          "qualityScore": 98
+        },
+        "ccaasData": {
+          "ck1": true,
+          "category": "verification"
+        },
+        "intervention": "No escalation needed"
+      }
+    }
+  }'
+
