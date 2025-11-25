@@ -423,83 +423,13 @@ curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
   }'
 
 
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: kokoro-config
-data:
-  LOG_LEVEL: "INFO"
-  TTS_SPEED: "1.0"
-  AUDIO_FORMAT: "f32"
-  SERVER_PORT: "4000"
+gcloud container clusters get-credentials kokoro-cluster \
+    --zone us-central1-a \
+    --project emr-dgt-autonomous-uctr1-snbx
 
 
+kubectl apply -f k8s/
 
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: kokoro-ws
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: kokoro-ws
-  template:
-    metadata:
-      labels:
-        app: kokoro-ws
-    spec:
-      runtimeClassName: nvidia
-      nodeSelector:
-        cloud.google.com/gke-nodepool: gpu-pool
-      tolerations:
-        - key: "nvidia.com/gpu"
-          operator: "Exists"
-          effect: "NoSchedule"
+kubectl get pods -o wide
 
-      containers:
-        - name: kokoro
-          image: "us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro-ws:v1"
-          imagePullPolicy: Always
-
-          envFrom:
-            - configMapRef:
-                name: kokoro-config
-
-          ports:
-            - containerPort: 4000
-
-          resources:
-            limits:
-              nvidia.com/gpu: 1
-              cpu: "2"
-              memory: "6Gi"
-            requests:
-              cpu: "1"
-              memory: "2Gi"
-
-          readinessProbe:
-            tcpSocket:
-              port: 4000
-            initialDelaySeconds: 5
-            periodSeconds: 5
-
-          livenessProbe:
-            tcpSocket:
-              port: 4000
-            initialDelaySeconds: 15
-            periodSeconds: 10
-
-
-
-apiVersion: v1
-kind: Service
-metadata:
-  name: kokoro-service
-spec:
-  type: LoadBalancer
-  selector:
-    app: kokoro-ws
-  ports:
-    - port: 3000
-      targetPort: 4000
+kubectl get svc kokoro-service
