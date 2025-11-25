@@ -423,37 +423,83 @@ curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
   }'
 
 
-FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kokoro-config
+data:
+  LOG_LEVEL: "INFO"
+  TTS_SPEED: "1.0"
+  AUDIO_FORMAT: "f32"
+  SERVER_PORT: "4000"
 
-ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
-    software-properties-common curl ffmpeg \
-    build-essential gcc g++ make \
-    libsndfile1 \
-    && add-apt-repository ppa:deadsnakes/ppa -y \
-    && apt-get install -y python3.10 python3.10-venv python3.10-distutils \
-    && rm -rf /var/lib/apt/lists/*
 
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kokoro-ws
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kokoro-ws
+  template:
+    metadata:
+      labels:
+        app: kokoro-ws
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        cloud.google.com/gke-nodepool: gpu-pool
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+      containers:
+        - name: kokoro
+          image: "us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro-ws:v1"
+          imagePullPolicy: Always
 
-WORKDIR /app
+          envFrom:
+            - configMapRef:
+                name: kokoro-config
 
-COPY requirements.txt /app/requirements.txt
+          ports:
+            - containerPort: 4000
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              cpu: "2"
+              memory: "6Gi"
+            requests:
+              cpu: "1"
+              memory: "2Gi"
 
-COPY . /app/
+          readinessProbe:
+            tcpSocket:
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 5
 
-RUN useradd -ms /bin/bash appuser
-USER appuser
+          livenessProbe:
+            tcpSocket:
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 10
 
-EXPOSE 4000
 
-CMD ["uvicorn", "ws_kokoro_server:app", "--host", "0.0.0.0", "--port", "4000"]
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kokoro-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: kokoro-ws
+  ports:
+    - port: 3000
+      targetPort: 4000
