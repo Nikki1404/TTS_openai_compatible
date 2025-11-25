@@ -423,157 +423,37 @@ curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
   }'
 
 
-README.md
-Kokoro TTS – GPU Deployment on Google Cloud Run (NVIDIA L4)
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
-This repository contains a FastAPI + Kokoro TTS service optimized for GPU inference using ONNXRuntime-GPU.
-This guide explains:
+ENV DEBIAN_FRONTEND=noninteractive
 
-Running locally (CPU)
+RUN apt-get update && apt-get install -y \
+    software-properties-common curl ffmpeg \
+    build-essential gcc g++ make \
+    libsndfile1 \
+    && add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get install -y python3.10 python3.10-venv python3.10-distutils \
+    && rm -rf /var/lib/apt/lists/*
 
-Running in Docker
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
 
-Running on Compute Engine (GPU)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-Building GPU-compatible Docker image
+WORKDIR /app
 
-Pushing image to Artifact Registry
+COPY requirements.txt /app/requirements.txt
 
-Deploying to Cloud Run + GPU
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt
 
-Testing using Python client
+COPY . /app/
 
-Verifying that GPU is actually being used
+RUN useradd -ms /bin/bash appuser
+USER appuser
 
-1. Requirements
-Local prerequisites
+EXPOSE 4000
 
-Python 3.10+
-
-Docker installed
-
-Google Cloud SDK installed & authenticated
-
-gcloud auth login
-gcloud config set project <PROJECT-ID>
-
-Enable required APIs
-
-Run once:
-
-gcloud services enable run.googleapis.com \
-    artifactregistry.googleapis.com \
-    compute.googleapis.com
-
-2. Project Structure
-fastapi_impl_gpu/
-│
-├── app/
-│   ├── main.py
-│   ├── core/
-│   ├── routers/
-│   └── tts/kokoro_engine.py
-│
-├── requirements.txt
-├── Dockerfile
-└── sample_test_client/
-
-3. Running Locally (Without Docker)
-Install dependencies
-pip install -r requirements.txt
-
-Run API
-uvicorn app.main:app --host 0.0.0.0 --port 8080
-
-Test the service
-python sample_test_client/option_1_test_openai.py
-
-
-Output:
-
-Saved -> output.mp3
-
-4. Running Locally With Docker (CPU Mode)
-docker build -t kokoro .
-docker run -p 8080:8080 kokoro
-
-5. Build on Compute Engine GPU (Required for ONNXRuntime-GPU)
-
-Cloud Build cannot build this image because GPU wheels (onnxruntime-gpu) are too large.
-So we must build inside a Compute Engine GPU VM.
-
-5.1 Create GPU VM
-
-GCP Console → Compute Engine → Create Instance
-
-Use:
-
-Setting	Value
-GPU	NVIDIA L4 (1 GPU)
-Machine type	n1-standard-8 or better
-Disk	50–100 GB
-OS	Ubuntu 22.04
-
-SSH into the VM.
-
-5.2 Install Docker
-sudo apt update
-sudo apt install -y docker.io
-sudo usermod -aG docker $USER
-newgrp docker
-
-5.3 Clone your repo
-git clone https://github.com/<your-repo>.git
-cd fastapi_impl_gpu
-
-5.4 Build Docker image on GPU VM
-docker build -t kokoro-gpu .
-
-5.5 Tag image for Artifact Registry
-docker tag kokoro-gpu us-central1-docker.pkg.dev/<PROJECT-ID>/cx-speech/kokoro:1.0.0
-
-5.6 Authenticate & Push image
-gcloud auth configure-docker us-central1-docker.pkg.dev
-docker push us-central1-docker.pkg.dev/<PROJECT-ID>/cx-speech/kokoro:1.0.0
-
-6. Deploy to Cloud Run with GPU
-
-Cloud Run supports GPUs only in specific regions (e.g., us-central1, europe-west4).
-
-Deploy:
-
-gcloud run deploy kokoro-gpu \
-  --image=us-central1-docker.pkg.dev/<PROJECT-ID>/cx-speech/kokoro:1.0.0 \
-  --region=us-central1 \
-  --platform=managed \
-  --gpu=1 \
-  --gpu-type=nvidia-l4 \
-  --cpu=4 \
-  --memory=16Gi \
-  --timeout=3600 \
-  --max-instances=1 \
-  --allow-unauthenticated
-
-
-Cloud Run creates a URL:
-
-https://kokoro-gpu-xxxxx-uc.a.run.app
-
-7. Test Cloud Run TTS Using Sample Python Client
-
-Modify file:
-
-client = OpenAI(
-    base_url="https://<your-cloud-run-url>/v1",
-    api_key="not-needed",
-)
-
-
-Run:
-
-python sample_test_client/option_1_test_openai.py
-
-
-Output:
-
-Saved -> output.mp3
+CMD ["uvicorn", "ws_kokoro_server:app", "--host", "0.0.0.0", "--port", "4000"]
