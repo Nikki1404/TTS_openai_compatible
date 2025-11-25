@@ -375,3 +375,28 @@ EXPOSE 8081
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8081"]
 
 us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro 
+
+
+curl --location --request POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "message": {
+        "conversationId": "200412",
+        "speaker": "user",
+        "agentType": "dfcx",
+        "transcript": "Hey",
+        "hm-conversation-metadata": {
+            "agentData": {
+                "qualityScore": "1",
+                "experienceYears": "1",
+                "agentName": "max weber"
+            },
+            "ccaasData": {
+                "check1": true,
+                "check2": "verified"
+            },
+            "intervention": "No escalation needed"
+        }
+    }
+  }'
+
