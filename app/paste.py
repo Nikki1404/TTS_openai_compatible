@@ -426,9 +426,11 @@ curl -X POST "https://hm-outreach-ws-150916788856.us-central1.run.app/publish" \
 import os
 from docx import Document   # pip install python-docx
 
+TEXT_EXTENSIONS = ["txt", "log", "md", "json", "py", "csv"]
+
 
 def read_text_file(file_path):
-    """Reads plain text files line by line."""
+    """Reads plain-text files line by line."""
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             for line in f:
@@ -436,7 +438,7 @@ def read_text_file(file_path):
                 if line:
                     yield line, file_path
     except Exception as e:
-        print(f"[ERROR] Cannot read {file_path}: {e}")
+        print(f"[ERROR reading text] {file_path}: {e}")
 
 
 def read_docx_file(file_path):
@@ -448,17 +450,21 @@ def read_docx_file(file_path):
             if text:
                 yield text, file_path
     except Exception as e:
-        print(f"[ERROR] Cannot read {file_path}: {e}")
+        print(f"[ERROR reading docx] {file_path}: {e}")
 
 
 def read_all_files_recursively(root_folder):
-    """Recursively goes through all subfolders and reads files line by line."""
+    """Deep recursive scan for ANY folder inside root."""
     for root, dirs, files in os.walk(root_folder):
+        # DEBUG: show folders being scanned
+        print(f"📁 Scanning folder: {root}")
+
         for file in files:
             file_path = os.path.join(root, file)
             ext = file.lower().split(".")[-1]
 
-            if ext in ["txt", "log", "md", "json", "py"]:
+            # TEXT BASED FILES
+            if ext in TEXT_EXTENSIONS:
                 for line, fp in read_text_file(file_path):
                     yield line, fp
 
@@ -466,22 +472,22 @@ def read_all_files_recursively(root_folder):
                 for line, fp in read_docx_file(file_path):
                     yield line, fp
 
-            # Ignore other file types automatically
+            # Skip all other types (images, binaries, etc.)
             else:
                 continue
 
 
 if __name__ == "__main__":
-    # Get folder path from terminal
     folder_path = input("Enter folder path: ").strip()
 
+    # Fix backslashes (Windows safety)
+    folder_path = folder_path.replace("\\", "/")
+
     if not os.path.isdir(folder_path):
-        print("\n❌ ERROR: Invalid directory\n")
+        print("\n❌ ERROR: Invalid directory.")
         exit(1)
 
-    print(f"\n📂 Reading all files from: {folder_path}\n")
+    print(f"\n🔍 Starting full deep scan in: {folder_path}\n")
 
-    # Process all files
     for line, file_path in read_all_files_recursively(folder_path):
         print(f"[{file_path}]  {line}")
-
