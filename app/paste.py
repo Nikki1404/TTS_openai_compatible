@@ -434,14 +434,27 @@ kubectl get pods -o wide
 
 kubectl get svc kokoro-service
 
+
 FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ENV https_proxy="http://163.116.128.80:8080"
-ENV http_proxy="http://163.116.128.80:8080"
+# Default proxy URL (only used if USE_PROXY=true)
+ENV PROXY_URL="http://163.116.128.80:8080"
 
-RUN apt-get update && apt-get install -y software-properties-common \
+ARG USE_PROXY=false
+
+# Optional Proxy Setup
+RUN if [ "$USE_PROXY" = "true" ]; then \
+        echo "⚠ Using proxy: $PROXY_URL"; \
+        export http_proxy="$PROXY_URL"; \
+        export https_proxy="$PROXY_URL"; \
+    else \
+        echo "✔ No proxy set"; \
+    fi
+
+RUN apt-get update && apt-get install -y \
+    software-properties-common curl \
     && add-apt-repository ppa:deadsnakes/ppa -y \
     && apt-get update && apt-get install -y \
         python3.12 \
@@ -462,14 +475,157 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     KOKORO_PRELOAD_VOICES="af_heart af_bella af_sky"
 
 WORKDIR /app
-
 COPY . /app/
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install --upgrade pip setuptools wheel \
-    && python3 -m pip install -r /app/requirements.txt
+    && python3 -m pip install -r requirements.txt
 
 EXPOSE 4000
 
+# Final server launch — host/port fully controlled here (not in Python)
 CMD ["python3", "ws_kokoro_server:app", "--host", "0.0.0.0", "--port", "4000"]
-    
+
+
+
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import asyncio, json, os
+import numpy as np
+import websockets
+import sounddevice as sd
+import soundfile as sf
+
+DEFAULT_WS_URL = "ws://localhost:4000/ws"
+DEFAULT_VOICE = "af_heart"
+DEFAULT_SPEED = 1.0
+DEFAULT_FORMAT = "f32"
+DEFAULT_SAMPLE_RATE = 24000
+
+
+async def tts_once(url, text, voice=DEFAULT_VOICE, speed=DEFAULT_SPEED, fmt=DEFAULT_FORMAT):
+    async with websockets.connect(url, max_size=None) as ws:
+
+        await ws.send(json.dumps({
+            "text": text,
+            "voice": voice,
+            "speed": speed,
+            "format": fmt
+        }))
+
+        sr = DEFAULT_SAMPLE_RATE
+        stream = None
+        dtype = np.float32 if fmt == "f32" else np.int16
+        audio_buf = bytearray()
+
+        try:
+            while True:
+                msg = await ws.recv()
+
+                if isinstance(msg, bytes):
+                    if fmt in {"f32", "s16"}:
+                        a = np.frombuffer(msg, dtype=dtype)
+                        if fmt == "s16":
+                            a = (a.astype(np.float32) / 32767.0)
+
+                        if stream is None:
+                            stream = sd.OutputStream(
+                                samplerate=sr, channels=1, dtype="float32"
+                            )
+                            stream.start()
+
+                        stream.write(a.reshape(-1, 1))
+
+                    else:
+                        audio_buf.extend(msg)
+
+                else:
+                    data = json.loads(msg)
+                    t = data.get("type")
+
+                    if t == "meta":
+                        sr = int(data["sample_rate"])
+                        print(f"[meta] sr={sr}, fmt={data['sample_format']}")
+
+                    elif t == "ttfa":
+                        print(f"[ttfa] {data['ms']:.1f} ms")
+
+                    elif t == "done":
+                        if data.get("error"):
+                            print("[done:ERROR]", data["error"])
+                        else:
+                            print(
+                                f"[done] gen={data['total_ms']:.1f} ms, "
+                                f"audio={data['audio_ms']:.1f} ms, "
+                                f"segments={data['segments']}, rtf={data['rtf']:.3f}"
+                            )
+                        break
+
+        finally:
+            if stream:
+                stream.stop()
+                stream.close()
+
+            if fmt not in {"f32", "s16"} and len(audio_buf) > 0:
+                os.makedirs("out_audio", exist_ok=True)
+                out_path = f"out_audio/output_{fmt}.{fmt}"
+                with open(out_path, "wb") as f:
+                    f.write(audio_buf)
+                print(f"[saved] {out_path}")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--url", default=DEFAULT_WS_URL)
+    ap.add_argument("--text", default=None)
+    ap.add_argument("--voice", default=DEFAULT_VOICE)
+    ap.add_argument("--speed", type=float, default=DEFAULT_SPEED)
+    ap.add_argument("--fmt", default=DEFAULT_FORMAT,
+                    choices=["f32", "s16", "wav", "mp3", "ogg", "flac"])
+    args = ap.parse_args()
+
+    async def run():
+        if args.text:
+            await tts_once(args.url, args.text, args.voice, args.speed, args.fmt)
+            return
+
+        print("Kokoro WS client (interactive). Type text and press Enter. /q to quit.")
+        while True:
+            line = input("text> ").strip()
+            if not line:
+                continue
+            if line in {"/q", "/quit", "/exit"}:
+                break
+
+            try:
+                await tts_once(args.url, line, args.voice, args.speed, args.fmt)
+            except Exception as e:
+                print(f"[warn] send/play failed: {e}")
+
+    asyncio.run(run())
+
+
+config.yml
+# Kokoro TTS Configuration
+
+format: "f32"
+speed: 1.0
+
+voice: "af_heart"
+lang_code: "a"
+
+output_dir: "out_audio"
+sample_rate: 24000
+
+logging:
+  level: "INFO"
+  save_logs: false
+  log_dir: "logs"
+
+pipeline:
+  split_pattern: "\\n+"
+  save_wav: false
+
