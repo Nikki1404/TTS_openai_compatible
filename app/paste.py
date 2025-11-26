@@ -434,71 +434,42 @@ kubectl get pods -o wide
 
 kubectl get svc kokoro-service
 
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
-Hi Kunal,
+ENV DEBIAN_FRONTEND=noninteractive
 
-I completed all the required modifications to make our Kokoro TTS service fully Kubernetes-compatible.
-Here is the current status:
+ENV https_proxy="http://163.116.128.80:8080"
+ENV http_proxy="http://163.116.128.80:8080"
 
-✅ What has been done
+RUN apt-get update && apt-get install -y software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get update && apt-get install -y \
+        python3.12 \
+        python3.12-distutils \
+        python3.12-venv \
+        ffmpeg \
+        build-essential gcc g++ make \
+        libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
 
-Updated the entire project to be GKE-compatible, including:
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 
-config.yaml rewritten for containerized deployment
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    KOKORO_LANG=a \
+    KOKORO_DEFAULT_VOICE=af_heart \
+    KOKORO_PRELOAD_VOICES="af_heart af_bella af_sky"
 
-Production-ready Dockerfile with CUDA 12.1 + Python 3.10
+WORKDIR /app
 
-GPU-compatible FastAPI WebSocket server
+COPY . /app/
 
-Kubernetes manifests (deployment.yaml, service.yaml, configmap.yaml)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install --upgrade pip setuptools wheel \
+    && python3 -m pip install -r /app/requirements.txt
 
-Successfully built the GPU-enabled Docker image on the Compute Engine VM.
+EXPOSE 4000
 
-Pushed the image to Artifact Registry:
-us-central1-docker.pkg.dev/emr-dgt-autonomous-uctr1-snbx/cx-speech/kokoro-tts:v1
-
-Deployment via kubectl/UI is ready and tested locally.
-
-⚠️ What is blocking Kubernetes deployment
-
-The service requires GPU (NVIDIA T4) for Torch/CUDA inference.
-However, our current cluster is in Autopilot mode, which unfortunately:
-
-❌ Does NOT support GPUs
-
-❌ Does NOT allow adding GPU node pools
-
-❌ Cannot run CUDA workloads
-
-❌ Blocks the workload from scheduling
-
-So even though the image is fully ready and pushed, the pod cannot be deployed because Autopilot clusters cannot allocate GPUs.
-
-🟦 What we need to proceed
-
-To deploy the GPU workload, we need a STANDARD GKE cluster or a GPU node pool created by the Infra/DevOps team.
-
-Specifically:
-
-A Standard mode GKE cluster (not Autopilot)
-
-Region: us-central1
-
-Zone: us-central1-a
-
-A GPU Node Pool attached to it:
-
-Machine type: n1-standard-4
-
-Accelerator: 1 × NVIDIA T4
-
-Node taint: nvidia.com/gpu=true:NoSchedule
-
-Permissions:
-
-Kubernetes Engine Developer
-
-Artifact Registry Reader
-
-Once this is provisioned, I can directly deploy the service using the UI or kubectl without any further changes.
+CMD ["python3", "ws_kokoro_server:app", "--host", "0.0.0.0", "--port", "4000"]
     
