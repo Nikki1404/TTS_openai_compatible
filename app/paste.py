@@ -36,23 +36,9 @@ yaml.parser.ParserError: expected '<document start>', but found '<block mapping 
 
   this is config.yml-
 
-config.yml
-# Kokoro TTS Configuration
+docker run -d \
+  --gpus all \
+  -p 4000:4000 \
+  --name kokoro-tts \
+  kokoro-tts:0.0.1
 
-format: "f32"
-speed: 1.0
-
-voice: "af_heart"
-lang_code: "a"
-
-output_dir: "out_audio"
-sample_rate: 24000
-
-logging:
-  level: "INFO"
-  save_logs: false
-  log_dir: "logs"
-
-pipeline:
-  split_pattern: "\\n+"
-  save_wav: false
