@@ -33,3 +33,26 @@ Traceback (most recent call last):
 yaml.parser.ParserError: expected '<document start>', but found '<block mapping start>'
   in "config.yaml", line 4, column 1
  
+
+  this is config.yml-
+
+config.yml
+# Kokoro TTS Configuration
+
+format: "f32"
+speed: 1.0
+
+voice: "af_heart"
+lang_code: "a"
+
+output_dir: "out_audio"
+sample_rate: 24000
+
+logging:
+  level: "INFO"
+  save_logs: false
+  log_dir: "logs"
+
+pipeline:
+  split_pattern: "\\n+"
+  save_wav: false
