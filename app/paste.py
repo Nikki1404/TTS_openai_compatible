@@ -1,114 +1,50 @@
-import os
-import time
-import json
-import numpy as np
-import soundfile as sf
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-import uvicorn
+(asr_env) PS C:\Users\re_nikitav\utils-poc\asr_nvidia_parakeet_realtime> pip install -r .\requirements.txt
+Collecting fastapi==0.110.0 (from -r .\requirements.txt (line 1))
+  Using cached fastapi-0.110.0-py3-none-any.whl.metadata (25 kB)
+Collecting nemo_toolkit>=2.5.0 (from nemo_toolkit[asr]>=2.5.0->-r .\requirements.txt (line 2))
+  Using cached nemo_toolkit-2.5.3-py3-none-any.whl.metadata (95 kB)
+Collecting numpy==1.26.4 (from -r .\requirements.txt (line 3))
+  Using cached numpy-1.26.4.tar.gz (15.8 MB)
+  Installing build dependencies ... done
+  Getting requirements to build wheel ... done
+  Installing backend dependencies ... done
+  Preparing metadata (pyproject.toml) ... error
+  error: subprocess-exited-with-error
+  
+  × Preparing metadata (pyproject.toml) did not run successfully.
+  │ exit code: 1
+  ╰─> [21 lines of output]
+      + C:\Users\re_nikitav\utils-poc\asr_nvidia_parakeet_realtime\asr_env\Scripts\python.exe C:\Users\re_nikitav\AppData\Local\Temp\1\pip-install-mc0el2nv\numpy_ccedd31933954cb19e1753bf60baca3e\vendored-meson\meson\meson.py setup C:\Users\re_nikitav\AppData\Local\Temp\1\pip-install-mc0el2nv\numpy_ccedd31933954cb19e1753bf60baca3e C:\Users\re_nikitav\AppData\Local\Temp\1\pip-install-mc0el2nv\numpy_ccedd31933954cb19e1753bf60baca3e\.mesonpy-5za04vr_ -Dbuildtype=release -Db_ndebug=if-release -Db_vscrt=md --native-file=C:\Users\re_nikitav\AppData\Local\Temp\1\pip-install-mc0el2nv\numpy_ccedd31933954cb19e1753bf60baca3e\.mesonpy-5za04vr_\meson-python-native-file.ini
+      The Meson build system
+      Version: 1.2.99
+      Source dir: C:\Users\re_nikitav\AppData\Local\Temp\1\pip-install-mc0el2nv\numpy_ccedd31933954cb19e1753bf60baca3e
+      Build dir: C:\Users\re_nikitav\AppData\Local\Temp\1\pip-install-mc0el2nv\numpy_ccedd31933954cb19e1753bf60baca3e\.mesonpy-5za04vr_
+      Build type: native build
+      Project name: NumPy
+      Project version: 1.26.4
+      WARNING: Failed to activate VS environment: Could not find C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe
 
-# ---------------------------------------------------
-# FORCE CPU MODE (NO GPU, NO CUDA)
-# ---------------------------------------------------
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+      ..\meson.build:1:0: ERROR: Unknown compiler(s): [['icl'], ['cl'], ['cc'], ['gcc'], ['clang'], ['clang-cl'], ['pgcc']]
+      The following exception(s) were encountered:
+      Running `icl ""` gave "[WinError 2] The system cannot find the file specified"
+      Running `cl /?` gave "[WinError 2] The system cannot find the file specified"
+      Running `cc --version` gave "[WinError 2] The system cannot find the file specified"
+      Running `gcc --version` gave "[WinError 2] The system cannot find the file specified"
+      Running `clang --version` gave "[WinError 2] The system cannot find the file specified"
+      Running `clang-cl /?` gave "[WinError 2] The system cannot find the file specified"
+      Running `pgcc --version` gave "[WinError 2] The system cannot find the file specified"
 
-import torch
-torch.set_default_device("cpu")
+      A full log can be found at C:\Users\re_nikitav\AppData\Local\Temp\1\pip-install-mc0el2nv\numpy_ccedd31933954cb19e1753bf60baca3e\.mesonpy-5za04vr_\meson-logs\meson-log.txt
+      [end of output]
 
-import nemo.collections.asr as nemo_asr
+  note: This error originates from a subprocess, and is likely not a problem with pip.
 
-app = FastAPI()
+[notice] A new release of pip is available: 24.3.1 -> 25.3
+[notice] To update, run: python.exe -m pip install --upgrade pip
+error: metadata-generation-failed
 
-# ---------------------------------------------------
-# LOAD PARAKEET REALTIME MODEL ON CPU
-# ---------------------------------------------------
-print("🔄 Loading Parakeet Realtime model on CPU...")
-asr_model = nemo_asr.models.ASRModel.from_pretrained(
-    model_name="nvidia/parakeet_realtime_eou_120m-v1",
-    map_location="cpu"
-)
-print("✅ Model loaded on CPU successfully!")
+× Encountered error while generating package metadata.
+╰─> See above for output.
 
-
-# ---------------------------------------------------
-# STATE MANAGER (Exact Object)
-# ---------------------------------------------------
-class ASRStateCPU:
-    def __init__(self, sample_rate=16000):
-        self.buffer = []
-        self.sample_rate = sample_rate
-        self.frames = 0
-        self.start_time = time.time()
-
-    def add_audio(self, audio_bytes):
-        audio = np.frombuffer(audio_bytes, dtype=np.int16)
-        self.buffer.append(audio)
-        self.frames += len(audio)
-
-    def get_audio(self):
-        if len(self.buffer) == 0:
-            return None
-        audio = np.concatenate(self.buffer)
-        self.buffer = []
-        return audio
-
-
-# ---------------------------------------------------
-# WEBSOCKET ENDPOINT
-# ---------------------------------------------------
-@app.websocket("/ws-asr")
-async def ws_asr(websocket: WebSocket):
-    await websocket.accept()
-    print("🟢 Client connected.")
-    state = ASRStateCPU()
-
-    try:
-        while True:
-            data = await websocket.receive_bytes()
-
-            # END OF UTTERANCE (client triggers)
-            if data == b"__END__":
-                audio_data = state.get_audio()
-
-                if audio_data is None:
-                    await websocket.send_text(json.dumps({"text": ""}))
-                    continue
-
-                # Save temp wav file
-                sf.write("temp.wav", audio_data, state.sample_rate)
-
-                # CPU ASR inference
-                t0 = time.time()
-                out = asr_model.transcribe(["temp.wav"])
-                asr_latency = time.time() - t0
-
-                text = out[0].text
-                total_latency = time.time() - state.start_time
-
-                result = {
-                    "text": text,
-                    "asr_latency_sec": round(asr_latency, 4),
-                    "total_end_to_end_sec": round(total_latency, 4),
-                    "frames_received": state.frames
-                }
-
-                await websocket.send_text(json.dumps(result))
-                print("📝 TEXT:", text)
-                print("⚡ ASR Latency:", result["asr_latency_sec"])
-                print("⏱️ Total Latency:", result["total_end_to_end_sec"])
-
-                state = ASRStateCPU()  # Reset for next utterance
-
-            else:
-                state.add_audio(data)
-
-    except WebSocketDisconnect:
-        print("🔴 Client disconnected.")
-    except Exception as e:
-        print("❌ Error:", str(e))
-
-
-# ---------------------------------------------------
-# RUN SERVER
-# ---------------------------------------------------
-if __name__ == "__main__":
-    uvicorn.run("server_cpu:app", host="0.0.0.0", port=8000)
+note: This is an issue with the package mentioned above, not pip.
+hint: See above for details.
