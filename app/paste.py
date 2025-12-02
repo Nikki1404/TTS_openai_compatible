@@ -15,3 +15,6 @@ Option A — We deploy the GPU ASR server on a machine that has Python 3.10 or 3
 Option B — Switch to another ASR model that supports Python 3.13, with a trade-off in latency and real-time capabilities.
 
 Please let me know which approach you would prefer so I can proceed accordingly.
+
+
+  python -c "import torch; print(torch.cuda.is_available())"
