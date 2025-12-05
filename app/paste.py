@@ -95,3 +95,55 @@ async def upload_benchmark_file(
 
     finally:
         await file.close()
+
+
+
+def persist_dashboard_entries(
+    db: Session,
+    rows: Union[Dict, List[Dict]],
+    user_id: str
+):
+    """
+    Universal persistence function:
+    - Accepts one dict OR list of dicts.
+    - Auto-detects single vs multiple entries.
+    - Uses bulk insert for performance.
+    - Safe for concurrent writes.
+    - Automatically rolls back on error.
+    """
+
+    # Normalize input → always list
+    if isinstance(rows, dict):
+        rows = [rows]
+
+    entries = []
+
+    try:
+        for r in rows:
+            entry = DashboardData(
+                id=str(uuid.uuid4()),
+                audio_file_name=r.get("Audio File Name"),
+                audio_length=r.get("Audio Length"),
+                model=r.get("Model"),
+                ground_truth=r.get("Ground_truth"),
+                transcription=r.get("Transcription"),
+                wer_score=r.get("WER Score"),
+                inference_time=r.get("Inference time (in sec)"),
+                created_by=user_id
+            )
+            entries.append(entry)
+
+        if len(entries) == 1:
+            db.add(entries[0])
+            db.commit()
+            db.refresh(entries[0])
+        else:
+            db.bulk_save_objects(entries)
+            db.commit()
+
+        return entries
+
+    except Exception as e:
+        db.rollback()
+        raise RuntimeError(f"Failed to persist dashboard entries: {e}")
+
