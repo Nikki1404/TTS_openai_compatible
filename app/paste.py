@@ -151,8 +151,16 @@ curl -Method POST "http://127.0.0.1:8000/api/auth/login" `
      -Headers @{ "Content-Type" = "application/json" } `
      -Body '{"email":"admin@demo.com","password":"password123"}'
 
-curl -X POST "http://127.0.0.1:8000/api/auth/login" ^
-     -H "Content-Type: application/json" ^
-     -d "{\"email\":\"admin@demo.com\",\"password\":\"password123\"}"
+$body = @{
+    email = "admin@demo.com"
+    password = "password123"
+} | ConvertTo-Json
+
+
+curl -Method POST "http://127.0.0.1:8000/api/auth/login" `
+     -Headers @{ "Content-Type" = "application/json" } `
+     -Body $body
+
+
 
 
