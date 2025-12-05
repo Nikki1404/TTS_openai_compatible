@@ -147,20 +147,12 @@ def persist_dashboard_entries(
         db.rollback()
         raise RuntimeError(f"Failed to persist dashboard entries: {e}")
 
-curl -Method POST "http://127.0.0.1:8000/api/auth/login" `
-     -Headers @{ "Content-Type" = "application/json" } `
-     -Body '{"email":"admin@demo.com","password":"password123"}'
+import google.generativeai as genai
 
-$body = @{
-    email = "admin@demo.com"
-    password = "password123"
-} | ConvertTo-Json
+genai.configure(api_key="AlzaSyAKBb...<your key>")
 
+models = genai.list_models()
 
-curl -Method POST "http://127.0.0.1:8000/api/auth/login" `
-     -Headers @{ "Content-Type" = "application/json" } `
-     -Body $body
-
-
-
+for m in models:
+    print(m.name)
 
