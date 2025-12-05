@@ -148,6 +148,5 @@ def persist_dashboard_entries(
         raise RuntimeError(f"Failed to persist dashboard entries: {e}")
 
 
-curl -Method POST "http://127.0.0.1:8000/users/login" `
-    -Headers @{ "Content-Type" = "application/json" } `
-    -Body '{ "email": "admin@demo.com", "password": "password123" }'
+curl -Method POST "http://127.0.0.1:8000/users/login" -Headers @{ "Content-Type" = "application/json" } -Body '{\"email\":\"admin@demo.com\",\"password\":\"password123\"}'
+
