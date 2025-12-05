@@ -148,10 +148,15 @@ def persist_dashboard_entries(
         raise RuntimeError(f"Failed to persist dashboard entries: {e}")
 
 
+[notice] To update, run: python.exe -m pip install --upgrade pip
+(env) PS C:\Users\re_nikitav\Desktop\asr_benchmark_frontend\backend> python .\create_demo_users.py
+(trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\re_nikitav\Desktop\asr_benchmark_frontend\backend\env\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+Error creating demo users: password cannot be longer than 72 bytes, truncate manually if necessary (e.g. my_password[:72])
+(env) PS C:\Users\re_nikitav\Desktop\asr_benchmark_frontend\backend> 
 
-
-SECRET_KEY=bd2f1a72c4a94f0caa4196d8e2c2d5d0e4c2b63fa2d0e5e7cdb103bd93f4c000
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-REFRESH_TOKEN_EXPIRE_DAYS=7
 
