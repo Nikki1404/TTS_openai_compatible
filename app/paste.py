@@ -147,12 +147,5 @@ def persist_dashboard_entries(
         db.rollback()
         raise RuntimeError(f"Failed to persist dashboard entries: {e}")
 
-(env) PS C:\Users\re_nikitav\Desktop\asr_benchmark_frontend\backend> curl -X POST "http://127.0.0.1:8000/api/benchmarks/upload" \
->>      -F "file=@C:\Users\re_nikitav\Downloads\sample_benchmark.xlsx"  
-Invoke-WebRequest : A parameter cannot be found that matches parameter name 'X'.
-At line:1 char:6
-+ curl -X POST "http://127.0.0.1:8000/api/benchmarks/upload" \
-+      ~~
-    + CategoryInfo          : InvalidArgument: (:) [Invoke-WebRequest], ParameterBindingException
-    + FullyQualifiedErrorId : NamedParameterNotFound,Microsoft.PowerShell.Commands.InvokeWebRequestComma  
-   nd
+curl -Method POST "http://127.0.0.1:8000/api/auth/login" -Headers @{ "Content-Type" = "application/json" } -Body '{\"email\":\"admin@demo.com\",\"password\":\"password123\"}'
+
