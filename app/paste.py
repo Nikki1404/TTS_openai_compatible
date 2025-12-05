@@ -148,5 +148,12 @@ def persist_dashboard_entries(
         raise RuntimeError(f"Failed to persist dashboard entries: {e}")
 
 
-curl -Method POST "http://127.0.0.1:8000/users/login" -Headers @{ "Content-Type" = "application/json" } -Body '{\"email\":\"admin@demo.com\",\"password\":\"password123\"}'
-
+(env) PS C:\Users\re_nikitav\Desktop\asr_benchmark_frontend\backend> curl -Method POST "http://127.0.0.1:8000/users/login" -Headers @{ "Content-Type" = "application/json" } -Body '{\"email\":\"admin@demo.com\",\"password\":\"password123\"}'
+curl : {"detail":"Not Found"}
+At line:1 char:1
++ curl -Method POST "http://127.0.0.1:8000/users/login" -Headers @{ "Co ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (System.Net.HttpWebRequest:HttpWebRequest) [Invoke-WebRe  
+   quest], WebException
+    + FullyQualifiedErrorId : WebCmdletWebResponseException,Microsoft.PowerShell.Commands.InvokeWebReque  
+   stCommand
