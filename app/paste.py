@@ -147,3 +147,11 @@ def persist_dashboard_entries(
         db.rollback()
         raise RuntimeError(f"Failed to persist dashboard entries: {e}")
 
+
+
+
+SECRET_KEY=bd2f1a72c4a94f0caa4196d8e2c2d5d0e4c2b63fa2d0e5e7cdb103bd93f4c000
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
