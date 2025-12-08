@@ -27,5 +27,16 @@ EXPOSE 8000
 ENV HOST=0.0.0.0
 ENV PORT=8000
 
+
+from fastapi import Request
+
+LB_PREFIX = "/asr-benchmarking"
+
+@app.middleware("http")
+async def strip_lb_prefix(request: Request, call_next):
+    path = request.scope.get("path", "")
+    if path.startswith(LB_PREFIX):
+        request.scope["path"] = path[len(LB_PREFIX):] or "/"
+    return await call_next(request)
 # Start the app with Uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
