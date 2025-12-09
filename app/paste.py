@@ -1,2 +1,22 @@
-(asr_benchmark_env) root@EC03-E01-AIASR1:/home/CORP/re_nikitav/asr_backend# curl http://cx-asr.exlservice.com/apps/docs
-<html style="height:100%"><head><META NAME="ROBOTS" CONTENT="NOINDEX, NOFOLLOW"><meta name="format-detection" content="telephone=no"><meta name="viewport" content="initial-scale=1.0"><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"><script type="text/javascript" src="/_Incapsula_Resource?SWJIYLWA=719d34d31c8e3a6e6fffd425f7e032f3"></script></head><body style="margin:0px;height:100%"><iframe id="main-iframe" src="/_Incapsula_Resource?CWUDNSAI=1&xinfo=15-72304463-0%200NNN%20RT%281765237514483%200%29%20q%280%20-1%20-1%201%29%20r%280%20-1%29%20B16%20U18&incident_id=502000510214000153-399635673154718927&edet=16&cinfo=ffffffff&rpinfo=0&cip=54.175.30.239&mth=GET" frameborder=0 width="100%" height="100%" marginheight="0px" marginwidth="0px">Request unsuccessful. Incapsula incident ID: 502000510214000153-399635673154718927</iframe></body></html>
+Hi Ankit,
+
+Swagger and the /apps/* endpoints are not loading because the requests are being blocked at the Imperva (Incapsula) WAF layer, before they reach AWS.
+
+Curl responses show Imperva block signatures:
+
+“Request unsuccessful / Incapsula incident ID”
+
+x-iinfo, visid_incap, incap_ses headers
+
+This confirms the traffic never reaches the ALB, target group, or FastAPI — which is why the backend works internally but not externally.
+
+Required Action
+
+Please add a WAF bypass/whitelist rule in Imperva for:
+
+/apps/*
+
+
+to allow this API path to pass without WAF inspection.
+
+Once applied, Swagger UI and external API access will work normally.
