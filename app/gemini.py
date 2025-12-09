@@ -5,12 +5,21 @@ curl -X 'POST' \
   -F 'file=@asr_benchmarking_Q2_2025 (1).xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 	
-Error: Internal Server Error
+                audio_length_raw = str(row.get('Audio Length', '')).strip()
+                if audio_length_raw.replace('.', '', 1).isdigit():
+                    audio_length = float(audio_length_raw)
+                elif ":" in audio_length_raw:
+                    # Convert HH:MM:SS → seconds
+                    parts = list(reversed(audio_length_raw.split(":")))
+                    audio_length = sum(float(x) * (60 ** idx) for idx, x in enumerate(parts))
+                else:
+                    audio_length = 0.0
 
-Response body
-Download
-{
-  "detail": "An error occurred while processing the file: 400: Invalid data in row 2: could not convert string to float: '06:44:00'"
-}
-
-getting this 
+                inference_raw = str(row.get('Inference time (in sec)', '')).strip()
+                if inference_raw.replace('.', '', 1).isdigit():
+                    inference_time = float(inference_raw)
+                elif ":" in inference_raw:
+                    parts = list(reversed(inference_raw.split(":")))
+                    inference_time = sum(float(x) * (60 ** idx) for idx, x in enumerate(parts))
+                else:
+                    inference_time = 0.0
